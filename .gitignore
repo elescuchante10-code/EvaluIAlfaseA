@@ -41,5 +41,9 @@ chroma.sqlite3-*
 tmp_pdf_extract*
 tmp_pdf_review*
 
+# Teacher-context Karpathy: nuevos Markdown generados en local bajo md/
+# (los .md ya versionados siguen en el índice; esto evita ruido ?? en git status)
+backend/data/teacher_context/md/
+
 # Archives / exports
 *.zip

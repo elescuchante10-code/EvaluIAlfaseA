@@ -13,6 +13,8 @@ def ensure_document_teacher_context_columns(engine: Engine) -> None:
     cols = {c["name"] for c in insp.get_columns("documents")}
 
     statements = []
+    if "file_size_bytes" not in cols:
+        statements.append("ALTER TABLE documents ADD COLUMN file_size_bytes INTEGER NOT NULL DEFAULT 0")
     if "context_markdown_status" not in cols:
         statements.append(
             "ALTER TABLE documents ADD COLUMN context_markdown_status VARCHAR(20) NOT NULL DEFAULT 'pending'"

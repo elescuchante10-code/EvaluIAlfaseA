@@ -11,6 +11,8 @@ import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from sqlalchemy.orm import Session
+
 from app.services.teacher_context_pipeline import TEACHER_CONTEXT_ROOT
 from app.services.teacher_context_response_policy import (
     build_teacher_context_snippets_prompt_footer,
@@ -146,7 +148,28 @@ def _strip_yaml_frontmatter(md: str) -> str:
     return text
 
 
-def _read_markdown_body(document_id: int) -> Optional[str]:
+def _document_owned(db: Session, document_id: int, owner_user_id: int) -> bool:
+    from app.models.models import Document
+
+    row = (
+        db.query(Document.id)
+        .filter(Document.id == int(document_id), Document.user_id == int(owner_user_id))
+        .first()
+    )
+    return row is not None
+
+
+def _read_markdown_body(
+    document_id: int,
+    *,
+    db: Optional[Session],
+    owner_user_id: Optional[int],
+) -> Optional[str]:
+    """Lee Markdown en disco solo si el documento pertenece a owner_user_id (lookup en BD)."""
+    if db is None or owner_user_id is None:
+        return None
+    if not _document_owned(db, int(document_id), int(owner_user_id)):
+        return None
     path = TEACHER_CONTEXT_ROOT / "md" / f"{document_id}.md"
     try:
         if not path.is_file():
@@ -256,6 +279,9 @@ def _parse_document_id(raw: Any) -> Optional[int]:
 def build_teacher_context_snippets_bundle(
     user_message: str,
     context: Optional[Dict[str, Any]],
+    *,
+    db: Optional[Session] = None,
+    owner_user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Devuelve un bundle auditable. Si no hay coincidencias útiles, `snippets` va vacío.
@@ -275,6 +301,12 @@ def build_teacher_context_snippets_bundle(
     pack = raw_pack if isinstance(raw_pack, dict) else None
     if not pack:
         base["note"] = "Sin teacher_context_pack en el contexto; no se aplica retrieval."
+        return base
+
+    if db is None or owner_user_id is None:
+        base["note"] = (
+            "Retrieval sin sesión de usuario autenticado; no se leen Markdown de Mi Espacio IB desde disco."
+        )
         return base
 
     msg = (user_message or "").strip()
@@ -310,7 +342,7 @@ def build_teacher_context_snippets_bundle(
     scored: List[Dict[str, Any]] = []
     read_count = 0
     for doc_bonus, d, did in candidates[:MAX_DOCS_TO_READ]:
-        raw_md = _read_markdown_body(did)
+        raw_md = _read_markdown_body(did, db=db, owner_user_id=owner_user_id)
         read_count += 1
         if not raw_md:
             continue
@@ -394,8 +426,13 @@ def merge_chat_context_with_teacher_snippets(
     base_context_block: str,
     user_message: str,
     context: Optional[Dict[str, Any]],
+    *,
+    db: Optional[Session] = None,
+    owner_user_id: Optional[int] = None,
 ) -> Tuple[str, Dict[str, Any]]:
-    bundle = build_teacher_context_snippets_bundle(user_message, context)
+    bundle = build_teacher_context_snippets_bundle(
+        user_message, context, db=db, owner_user_id=owner_user_id
+    )
     sf = resolve_chat_superficie(context)
     extra = format_teacher_context_snippets_for_prompt(bundle, superficie=sf)
     if not extra:

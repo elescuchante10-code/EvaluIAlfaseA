@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 from app.services import evaluation_context_bundle as ecb
 from app.services import teacher_context_retrieval as tcr
 
@@ -73,6 +75,7 @@ def test_shadow_bundle_excludes_evaluated_doc_from_client_pack(monkeypatch, tmp_
 
 
 def test_shadow_bundle_retrieval_from_other_docs(monkeypatch, tmp_path):
+    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: int(did) == 20 and int(uid) == 1)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
     (root / "md" / "20.md").write_text(
@@ -103,9 +106,47 @@ def test_shadow_bundle_retrieval_from_other_docs(monkeypatch, tmp_path):
         ),
         document_context=ctx,
         discipline_profile=_discipline(),
-        db=None,
+        db=MagicMock(),
+        db_user_id=1,
     )
     assert bundle["retrieval_used"] is True
     assert bundle["teacher_context_snippets"]
     assert bundle["related_document_categories"] == ["guide"]
     assert bundle["teacher_context_retrieval_debug"]["pack_source"] == "client"
+
+
+def test_shadow_bundle_no_disk_read_for_foreign_doc_in_pack(monkeypatch, tmp_path):
+    """Pack con doc_id ajeno: sin snippets si la BD niega ownership (no lectura de disco)."""
+    root = tmp_path / "teacher_context"
+    (root / "md").mkdir(parents=True)
+    (root / "md" / "20.md").write_text(
+        "---\n---\n\nContenido secreto de otro usuario.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: False)
+
+    ctx = {
+        "teacher_context_pack": {
+            "pack_kind": "teacher_context_pack",
+            "documents": [
+                {
+                    "document_id": 20,
+                    "filename": "x.pdf",
+                    "markdown_status": "ready",
+                    "categoria_documental": "guide",
+                }
+            ],
+        }
+    }
+    bundle = ecb.build_evaluation_context_bundle(
+        document_id=99,
+        paragraphs=["Reflexión sobre conocimiento científico."],
+        rubric_markdown="---\nasignatura: Filosofía\n---\nconocimiento científico",
+        document_context=ctx,
+        discipline_profile=_discipline(),
+        db=MagicMock(),
+        db_user_id=1,
+    )
+    assert bundle["retrieval_used"] is False
+    assert bundle["teacher_context_snippets"] == []

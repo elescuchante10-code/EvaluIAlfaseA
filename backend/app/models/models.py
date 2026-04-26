@@ -216,6 +216,8 @@ class Document(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     filename = Column(String(500), nullable=False)
     original_text = Column(Text, nullable=True)
+    # Tamaño del archivo subido (cupo wiki / teacher context). Fuente de verdad para quotas.
+    file_size_bytes = Column(Integer, nullable=False, default=0, server_default="0")
     # Pipeline contextual (Mi Espacio IB / Karpathy-style): Markdown derivado en disco; sin embeddings.
     context_markdown_status = Column(String(20), nullable=False, default="pending")
     context_markdown_relpath = Column(String(500), nullable=True)

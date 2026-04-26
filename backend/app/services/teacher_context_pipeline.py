@@ -114,8 +114,16 @@ def write_manifest_to_disk(document_models) -> Path:
     return path
 
 
-def regenerate_teacher_context_artifacts(db) -> None:
-    """Regenera el manifiesto en disco a partir del estado actual de la tabla documents."""
+def regenerate_teacher_context_artifacts(db, triggering_user_id: Optional[int] = None) -> None:
+    """
+    Regenera el manifiesto en disco a partir del estado actual de la tabla documents.
+
+    El archivo agregado en disco puede listar todos los tenants (uso interno/auditoría en FS);
+    las rutas HTTP (`/api/documents/...`) filtran por usuario. `triggering_user_id` se acepta
+    para trazabilidad futura; la regeneración sigue siendo global respecto a la BD para mantener
+    un único manifiesto coherente con las filas existentes.
+    """
+    _ = triggering_user_id  # reservado: llamadas desde upload/delete pasan el actor
     from app.models.models import Document  # import local evita ciclos
 
     docs = db.query(Document).order_by(Document.id.asc()).all()

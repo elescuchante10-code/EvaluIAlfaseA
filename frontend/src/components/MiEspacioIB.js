@@ -174,6 +174,7 @@ export default function MiEspacioIB({
   onAbrirPanelRubricas,
   onCrearRubrica,
   onUploadDocument, // (file) => Promise<{document_id, filename, status, paragraphs_count}>
+  onDeleteDocument, // (document_id) => Promise<void>
 }) {
   const [asignatura, setAsignatura] = useState(loadAsignaturaInicial);
   const [editandoAsignatura, setEditandoAsignatura] = useState(
@@ -459,11 +460,38 @@ export default function MiEspacioIB({
   }, []);
 
   const eliminarArchivo = useCallback((id) => {
-    // Quita del índice local. El binario puede seguir existiendo en backend,
-    // pero Mi Espacio IB deja de mostrarlo aquí. (No llamamos endpoint DELETE
-    // para no tocar backend en esta fase.)
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-  }, []);
+    setFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (!target) return prev;
+
+      // Si ya está persistido en backend, borramos allá para liberar cupo real.
+      if (target.status === FILE_STATUS.saved && target.document_id && typeof onDeleteDocument === 'function') {
+        const docId = target.document_id;
+        // Optimista: quita de UI; si falla lo reinsertamos con error.
+        setTimeout(async () => {
+          try {
+            await onDeleteDocument(docId);
+          } catch (err) {
+            // Reinsertar con mensaje de error (sin mentir: el backend no lo borró)
+            setFiles((curr) => {
+              const exists = curr.some((x) => x.id === id);
+              if (exists) return curr;
+              return [
+                {
+                  ...target,
+                  status: FILE_STATUS.error,
+                  errorMessage: err?.message || 'No se pudo eliminar en servidor',
+                },
+                ...curr,
+              ];
+            });
+          }
+        }, 0);
+      }
+
+      return prev.filter((f) => f.id !== id);
+    });
+  }, [onDeleteDocument]);
 
   const archivosPorCategoria = useMemo(() => {
     const map = Object.fromEntries(

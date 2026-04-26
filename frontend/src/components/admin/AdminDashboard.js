@@ -31,6 +31,32 @@ const formatApiError = (data, fallback) => {
   return fallback;
 };
 
+const parseFieldErrors = (data) => {
+  const detail = data?.detail;
+  const out = {};
+  // FastAPI/Pydantic típico: [{ loc: [...], msg, type }]
+  if (Array.isArray(detail)) {
+    for (const item of detail) {
+      const loc = Array.isArray(item?.loc) ? item.loc : [];
+      const field = String(loc[loc.length - 1] || '').trim();
+      const msg = String(item?.msg || '').trim();
+      if (!field || !msg) continue;
+      if (!out[field]) out[field] = msg;
+    }
+  }
+  // Errores de dominio: { code, message, ... }
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+    out._global = detail.message;
+  }
+  return out;
+};
+
+const clampInt = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.trunc(n);
+};
+
 export default function AdminDashboard() {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
@@ -41,6 +67,7 @@ export default function AdminDashboard() {
   const [selectedLedger, setSelectedLedger] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerBusy, setDrawerBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [createForm, setCreateForm] = useState({
     email: '',
@@ -57,6 +84,7 @@ export default function AdminDashboard() {
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
     setError('');
+    setFieldErrors({});
     try {
       const params = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : '';
       const res = await fetch(`${API_URL}/api/admin/users${params}`, {
@@ -76,6 +104,7 @@ export default function AdminDashboard() {
   const openUser = useCallback(async (userId) => {
     setDrawerBusy(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`${API_URL}/api/admin/users/${userId}`, {
         method: 'GET',
@@ -96,6 +125,7 @@ export default function AdminDashboard() {
   const createUser = useCallback(async () => {
     setDrawerBusy(true);
     setError('');
+    setFieldErrors({});
     try {
       const payload = {
         email: createForm.email.trim(),
@@ -125,19 +155,43 @@ export default function AdminDashboard() {
 
   const doTopup = useCallback(async () => {
     if (!selectedUser) return;
+    const delta = clampInt(topup.credits_delta);
+    const reason = String(topup.reason || '').trim();
+    const before = clampInt(selectedUser.credits_balance);
+    const after = before + delta;
+
+    const nextErrors = {};
+    if (!delta) nextErrors.credits_delta = 'Ingresa un ajuste distinto de 0.';
+    if (reason.length < 2) nextErrors.reason = 'Escribe una razón (mín. 2 caracteres).';
+    if (after < 0) nextErrors.credits_delta = 'No se puede dejar el saldo en negativo.';
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    if (delta < 0) {
+      const ok = window.confirm(`Vas a restar ${Math.abs(delta)} créditos a ${selectedUser.email}. ¿Confirmas?`);
+      if (!ok) return;
+    }
+
     setDrawerBusy(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`${API_URL}/api/admin/users/${selectedUser.id}/topup`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          credits_delta: Number(topup.credits_delta || 0),
-          reason: topup.reason,
+          credits_delta: delta,
+          reason,
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(formatApiError(data, `Error ${res.status}`));
+      if (!res.ok) {
+        const parsed = parseFieldErrors(data);
+        setFieldErrors(parsed);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setSelectedUser(data.user);
       setSelectedLedger(data.ledger_events || []);
       await loadUsers();
@@ -151,8 +205,14 @@ export default function AdminDashboard() {
 
   const doResetPassword = useCallback(async () => {
     if (!selectedUser) return;
+    const pwd = String(resetPwd.new_password || '');
+    if (pwd.length < 8) {
+      setFieldErrors((p) => ({ ...p, new_password: 'La contraseña debe tener al menos 8 caracteres.' }));
+      return;
+    }
     setDrawerBusy(true);
     setError('');
+    setFieldErrors({});
     try {
       const res = await fetch(`${API_URL}/api/admin/users/${selectedUser.id}/reset-password`, {
         method: 'POST',
@@ -160,7 +220,11 @@ export default function AdminDashboard() {
         body: JSON.stringify({ new_password: resetPwd.new_password }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(formatApiError(data, `Error ${res.status}`));
+      if (!res.ok) {
+        const parsed = parseFieldErrors(data);
+        setFieldErrors(parsed);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setResetPwd({ new_password: '' });
     } catch (e) {
       setError(e?.message || 'Error reseteando password');
@@ -414,32 +478,68 @@ export default function AdminDashboard() {
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <input
                   value={topup.credits_delta}
-                  onChange={(e) => setTopup((p) => ({ ...p, credits_delta: e.target.value }))}
+                  onChange={(e) => {
+                    setFieldErrors((p) => ({ ...p, credits_delta: undefined, _global: undefined }));
+                    setTopup((p) => ({ ...p, credits_delta: e.target.value }));
+                  }}
                   type="number"
-                  min="1"
-                  placeholder="créditos +"
+                  step="1"
+                  placeholder="créditos (+/-)"
                   style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(2,6,23,0.35)', color: '#e2e8f0' }}
                 />
                 <input
                   value={topup.reason}
-                  onChange={(e) => setTopup((p) => ({ ...p, reason: e.target.value }))}
+                  onChange={(e) => {
+                    setFieldErrors((p) => ({ ...p, reason: undefined, _global: undefined }));
+                    setTopup((p) => ({ ...p, reason: e.target.value }));
+                  }}
                   placeholder="razón"
                   style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(2,6,23,0.35)', color: '#e2e8f0' }}
                 />
+                <div style={{ gridColumn: '1 / span 2', color: 'rgba(203,213,225,0.82)', fontSize: 12.5, lineHeight: 1.35 }}>
+                  <div>
+                    Saldo actual:{' '}
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#e0e7ff' }}>
+                      {clampInt(selectedUser?.credits_balance)}
+                    </span>
+                    {' · '}
+                    Saldo resultante:{' '}
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, color: '#e0e7ff' }}>
+                      {clampInt(selectedUser?.credits_balance) + clampInt(topup.credits_delta)}
+                    </span>
+                  </div>
+                  {fieldErrors.credits_delta ? (
+                    <div style={{ marginTop: 6, color: '#fecaca', fontWeight: 700 }}>{fieldErrors.credits_delta}</div>
+                  ) : null}
+                  {fieldErrors.reason ? (
+                    <div style={{ marginTop: 6, color: '#fecaca', fontWeight: 700 }}>{fieldErrors.reason}</div>
+                  ) : null}
+                  {fieldErrors._global ? (
+                    <div style={{ marginTop: 6, color: '#fecaca', fontWeight: 800 }}>{fieldErrors._global}</div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={doTopup}
-                  disabled={drawerBusy}
+                  disabled={
+                    drawerBusy ||
+                    !clampInt(topup.credits_delta) ||
+                    String(topup.reason || '').trim().length < 2 ||
+                    clampInt(selectedUser?.credits_balance) + clampInt(topup.credits_delta) < 0
+                  }
                   style={{ gridColumn: '1 / span 2', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(22,163,74,0.18)', color: '#bbf7d0', fontWeight: 900, cursor: 'pointer' }}
                 >
-                  Top-up
+                  Aplicar ajuste
                 </button>
               </div>
 
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <input
                   value={resetPwd.new_password}
-                  onChange={(e) => setResetPwd({ new_password: e.target.value })}
+                  onChange={(e) => {
+                    setFieldErrors((p) => ({ ...p, new_password: undefined, _global: undefined }));
+                    setResetPwd({ new_password: e.target.value });
+                  }}
                   placeholder="nuevo password"
                   type="text"
                   spellCheck={false}
@@ -449,12 +549,17 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={doResetPassword}
-                  disabled={drawerBusy}
+                  disabled={drawerBusy || String(resetPwd.new_password || '').length < 8}
                   style={{ padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(127,29,29,0.18)', color: '#fecaca', fontWeight: 900, cursor: 'pointer' }}
                 >
                   Reset
                 </button>
               </div>
+              {fieldErrors.new_password ? (
+                <div style={{ marginTop: 8, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
+                  {fieldErrors.new_password}
+                </div>
+              ) : null}
 
               <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                 <button

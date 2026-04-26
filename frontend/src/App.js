@@ -392,6 +392,49 @@ function App() {
     resetEvaluacion();
   };
 
+  // ── Sesión viva (fuente de verdad: /api/auth/me) ───────────────────────────
+  const refreshingMeRef = useRef(false);
+
+  const refreshSessionUser = useCallback(
+    async ({ reason = 'poll' } = {}) => {
+      if (!authAPI.isAuthenticated()) return;
+      if (refreshingMeRef.current) return;
+      refreshingMeRef.current = true;
+      try {
+        const me = await authAPI.getMe();
+        if (me?.success && me.user) {
+          setUser(me.user);
+          return;
+        }
+        if (me?.expired) {
+          // authAPI.getMe ya limpió token/user; redirigir a login sin bloquear
+          setUser(null);
+          setCurrentView('login');
+          setError(me?.message || 'Sesión expirada. Por favor inicia sesión de nuevo.');
+          return;
+        }
+        if (me?.success === false) {
+          // No bloquear UX: mantener último user en memoria
+          console.warn(`[refreshSessionUser:${reason}]`, me?.message || 'No se pudo revalidar sesión.');
+        }
+      } catch (err) {
+        console.warn(`[refreshSessionUser:${reason}]`, err);
+      } finally {
+        refreshingMeRef.current = false;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!authAPI.isAuthenticated()) return undefined;
+    // polling suave: 90s (entre 60 y 120s)
+    const id = window.setInterval(() => {
+      refreshSessionUser({ reason: 'interval' });
+    }, 90 * 1000);
+    return () => window.clearInterval(id);
+  }, [refreshSessionUser]);
+
   // Subir documento
   const handleUploadDocument = useCallback(async (file) => {
     console.log('[📤 UPLOAD] Iniciando subida de documento:', file.name);
@@ -505,6 +548,26 @@ function App() {
       markdown_relpath: data.markdown_relpath,
       teacher_context_manifest_url: data.teacher_context_manifest_url,
     };
+  }, []);
+
+  // Eliminar documento desde Mi Espacio IB (libera cupo real en backend)
+  const handleDeleteDocumentoEspacio = useCallback(async (documentId) => {
+    const token = localStorage.getItem('token') || '';
+    if (!token) throw new Error('Sesión inválida. Inicia sesión de nuevo.');
+    const response = await fetch(`${API_URL}/api/documents/${documentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg = data?.detail?.message || data?.detail || data?.message || `Error ${response.status}`;
+      throw new Error(typeof msg === 'string' ? msg : 'Error eliminando documento');
+    }
+    // Notifica al medidor de Configuración que el cupo cambió
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('evaluai:storage-quota-changed'));
+    }
+    return data;
   }, []);
 
   // Evaluar documento con rúbrica
@@ -1028,6 +1091,7 @@ function App() {
           title={headerCopy.title}
           subtitle={headerCopy.subtitle}
           compact={headerCopy.compact}
+          creditsBalance={user?.credits_balance ?? 0}
           showMobileNavButton={isMobileShellLayout}
           onOpenMobileNav={() => setIsMobileShellNavOpen(true)}
           showOperationalToggle={seccionActiva === 'trabajo'}
@@ -1045,6 +1109,7 @@ function App() {
             }}
             onCrearRubrica={openNewRubricEditor}
             onUploadDocument={handleUploadDocumentoEspacio}
+            onDeleteDocument={handleDeleteDocumentoEspacio}
           />
         ) : seccionActiva === 'asistente' ? (
           <AsistenteIA rubricaActiva={rubricaActiva} />

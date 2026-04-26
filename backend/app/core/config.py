@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # Comma-separated list, e.g. "https://app.vercel.app,http://localhost:3000"
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3005,http://127.0.0.1:3005,https://evaluador-ib.vercel.app"
 
+    # Storage quota (wiki docente / teacher context)
+    MAX_UPLOAD_FILE_BYTES: int = 20 * 1024 * 1024
+    MAX_USER_STORAGE_BYTES: int = 100 * 1024 * 1024
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def _normalize_allowed_origins(cls, value: object) -> str:

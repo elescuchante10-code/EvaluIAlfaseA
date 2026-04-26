@@ -133,7 +133,11 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
 
 ### Tareas pendientes (agregar aquí)
 
-- [ ] (pendiente) …
+- ⬜ **[Infra/Dev] Persistencia obligatoria (DB + storage)**
+  - **Motivo**: el cupo “Wiki docente” y su medidor dependen de datos persistentes; sin volúmenes, un redeploy puede borrar DB/archivos.
+  - **DB**: usar Postgres con volumen persistente (o Postgres gestionado) + backups.
+  - **Storage**: montar volúmenes persistentes para artefactos/archivos del backend (ej. `backend/data/**` / teacher context markdown).
+  - **Criterio de éxito**: redeploy/restart no cambia el cupo usado ni “pierde” documentos.
 
 ---
 
@@ -166,3 +170,141 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
 ## Backlog (tareas sueltas por clasificar)
 
 - [ ] …
+
+---
+
+## Panel de administración (dejar impecable)
+
+**Objetivo**: que el panel admin sea **confiable, claro y seguro** para operar usuarios y créditos sin errores confusos.
+
+### Alcance (MVP)
+
+- **Usuarios**: listar, buscar por email, ver estado (activo/tipo/institución).
+- **Creación de usuario**: crear usuario individual/institucional con validaciones claras.
+- **Créditos**: ver créditos, registrar recargas/topups, ver ledger.
+- **Export**: export CSV (global) desde UI.
+
+### Checklist de calidad (impecable)
+
+- ⬜ **[Dev] Validaciones UI alineadas con backend**
+  - Password mínimo **8 caracteres** (evitar error Pydantic visible).
+  - Email requerido y formato válido.
+  - Créditos: numérico; defaults claros.
+  - **Ajustes de créditos (+/-)** desde Admin:
+    - Permitir sumar **y** restar créditos (ej. `+200`, `-100`).
+    - `reason` obligatorio (mínimo 2 caracteres).
+    - No permitir que el saldo final quede en negativo (error humano, no JSON técnico).
+  - Tipo: `individual` / `institutional` (labels consistentes).
+  - Si `institutional`: `institution_name` requerido.
+
+- ⬜ **[Dev] Manejo de errores y mensajes**
+  - Traducir errores técnicos (Pydantic/stack) a mensajes humanos (ej. “La contraseña debe tener mínimo 8 caracteres”).
+  - Mostrar errores por campo + banner general solo si aplica.
+  - Estados de carga (crear/buscar/exportar) con feedback visible.
+
+- ⬜ **[Dev] Seguridad y permisos**
+  - Restringir acceso del panel admin (solo rol admin) y redirección si no autorizado.
+  - Verificar que endpoints `/api/admin/*` exijan JWT + rol admin.
+  - Deshabilitar bootstrap admin en prod (solo para local) y rotar llaves.
+
+- ⬜ **[Dev] UX**
+  - Tabla: paginación o lazy-load si crece.
+  - Búsqueda: debounce (opcional) y “sin resultados” claro.
+  - Formularios: limpiar después de “crear”, y refrescar lista.
+  - Accesibilidad: focus states, labels, `aria-live` para errores.
+
+- ⬜ **[Dev] Pruebas de humo (obligatorio antes de prod)**
+  - Login como admin.
+  - Listar usuarios.
+  - Buscar usuario por email.
+  - Crear usuario con password < 8 (debe bloquear en UI).
+  - Crear usuario válido (reflejar en tabla).
+  - Export CSV (descarga OK).
+  - Ajustar créditos `+200` y verificar ledger + saldo.
+  - Ajustar créditos `-100` y verificar ledger + saldo.
+  - Intentar ajuste que deje saldo negativo (debe bloquearse con mensaje claro).
+
+### Estado / notas
+
+- 🔴 **Riesgo actual**: error visible de Pydantic por `new_password` demasiado corto (mínimo 8). Esto debe resolverse con validación UI + mapeo de error backend → mensaje humano.
+
+---
+
+## Ajuste — Límites de carga “Wiki docente” (Karpathy RAG sin vectores)
+
+**Objetivo**: evitar “sorpresas” de costos/almacenamiento manteniendo una UX clara para profesores.
+
+### Política propuesta (cero sorpresas)
+
+- **Límite por archivo**: **20 MB** (PDF/DOCX/TXT).
+- **Cupo total por usuario**: **100 MB** acumulados.
+- **Regla**: no permitir subir si excede el cupo; mostrar mensaje humano (“Te quedan X MB disponibles”).
+
+> Nota: se debe definir si el cupo cuenta solo el **archivo original** o también los **derivados** (texto/markdown). Recomendación MVP: contar **original** y monitorear derivados.
+
+### Ruta de implementación (orden recomendado)
+
+- ✅ **[Producto/Dev] Definir alcance del cupo**
+  - Cupo aplica a: Mi Espacio IB / teacher context (“wiki”).
+  - Qué formatos cuentan: PDF/DOCX/TXT (imágenes/escaneados se mantienen dentro del mismo límite por archivo).
+  - Qué cuenta al cupo: **original** (MVP).
+
+- ✅ **[Dev] Configuración central**
+  - Variables/constantes: `MAX_FILE_MB=20`, `MAX_USER_STORAGE_MB=100`.
+  - Mantener defaults seguros para local y sobreescritura por env var en prod.
+
+- ✅ **[Dev] Enforcements backend**
+  - En el endpoint de subida (ej. `/api/documents/upload`): bloquear archivos > 20MB.
+  - Antes de aceptar un upload: calcular “uso actual” del usuario + tamaño del nuevo archivo; bloquear si excede 100MB.
+  - Guardar en DB el `file_size_bytes` por documento y calcular el uso por usuario on-demand (suma).
+  - Error API humano: `{ code: 'file_too_large'|'storage_quota_exceeded', message: '...' }`.
+  - **Eliminación real**: `DELETE /api/documents/{id}` borra el documento del usuario autenticado (libera cupo real).
+
+- ✅ **[Dev] UX frontend**
+  - Mostrar el medidor **solo en Configuración**: “Almacenamiento wiki: X MB / 100 MB”.
+  - Si backend rechaza por cupo: mostrar mensaje humano + sugerir borrar/archivar.
+  - **Refresco automático**: al subir o eliminar, el medidor se actualiza (sin recargar) consultando de nuevo la cuota.
+
+- ✅ **[Dev] Pruebas de humo**
+  - Subir archivo de 21MB → bloquear (frontend o backend).
+  - Subir múltiples archivos hasta ~100MB → el último que excede debe bloquear.
+  - Eliminar un documento guardado → debe liberar cupo y el medidor debe bajar.
+  - Verificar que el mensaje indique el cupo restante.
+
+---
+
+## Karpathy y Motor IA (calidad + privacidad)
+
+**Objetivo**: que el chat (Asistente IA + chat contextual) use la “wiki docente” como grounding **sin mezclar datos entre profesores** y con el proveedor IA funcionando.
+
+### Estado actual
+
+- ✅ **[Dev] Motor IA (Groq) funcionando en local**
+  - **Condición**: `GROQ_API_KEY` presente en env vars del backend.
+  - **Verificación**: `POST /api/evaluate/chat` responde `success: true` (sin `llm_unconfigured`).
+
+- 🟡 **[Dev] Karpathy (wiki) conectado a chat**
+  - **Frontend**: envía `teacher_context_pack` + `teacher_context_summary` en Asistente IA y ChatBubble.
+  - **Backend**: hace retrieval sin vectores (`merge_chat_context_with_teacher_snippets`) leyendo Markdown y anexando snippets + política de uso por superficie.
+
+### Tareas para dejar impecable (prioridad)
+
+- ✅ **[Dev] Aislamiento multiusuario (privacidad) — PRIORIDAD MÁXIMA** (2026-04-26)
+  - **Qué hicimos**: API de documentos/manifiesto/markdown y borrado filtran por `Document.user_id == current_user.id`; el pack servidor en evaluación (`_build_server_teacher_pack`) solo incluye documentos del evaluador; el retrieval de Markdown en chat exige `db` + `owner_user_id` y comprueba propiedad antes de leer disco; sin usuario no se leen `.md` (evita packs manipulados sin verificación).
+  - **Para qué sirve**: que dos profesores en la misma instancia no vean ni infieran contenido ajeno por IDs, manifiesto o rutas de archivo; el motor de evaluación y los prompts formales no se alteran, solo el origen y el filtrado del teacher pack y la lectura de artefactos.
+  - **Evidencia**: `pytest` focal (`tests/test_evaluation_context_bundle.py`, `tests/test_teacher_context_retrieval.py`) OK.
+  - **Compatibilidad**: `GET /api/documents/teacher-context/manifest` ya no lista todo el servidor, solo documentos del usuario autenticado (cambio intencional).
+
+- ✅ **[Dev] Higiene repo — artefactos teacher-context en local** (2026-04-26)
+  - **Qué hicimos**: restaurar `backend/data/teacher_context/teacher_context_manifest.json` al estado versionado cuando el pipeline local lo ensucia; borrar Markdown huérfano no versionado; añadir en `.gitignore` la carpeta `backend/data/teacher_context/md/` para que **nuevos** `.md` generados en local no aparezcan como `??` (los ya trackeados siguen en git).
+  - **Para qué sirve**: evitar commits accidentales de datos de prueba / PII y diffs eternos en el manifiesto mientras el almacenamiento definitivo sigue siendo “carpeta bajo repo” en desarrollo.
+
+- ⬜ **[Dev] Namespacing de artefactos en disco (teacher-context)** — **siguiente paso recomendado**
+  - Guardar manifests y Markdown por usuario (carpeta por `user_id`) para evitar colisiones por `document_id` y alinear disco con el aislamiento ya aplicado en API/BD.
+  - **Infra alineada**: en VPS, persistir volumen para `backend/data/**` (teacher context + cuotas); ver Fase 2 / notas de storage en esta matriz.
+
+- ⬜ **[Dev] Fallback server-pack (cross-device)**
+  - Endpoint autenticado que entregue `teacher_context_pack` por usuario (para cuando el índice local del navegador esté vacío).
+
+- ⬜ **[Dev] Observabilidad (confianza)**
+  - Exponer en respuesta del chat un resumen opcional del retrieval (`documents_read`, `snippets_used`, `note`) para soporte.
