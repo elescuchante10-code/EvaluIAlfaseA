@@ -51,6 +51,17 @@ const parseFieldErrors = (data) => {
   return out;
 };
 
+const isAdminForbidden = (res, data) => {
+  if (!res) return false;
+  if (res.status !== 403) return false;
+  const detail = data?.detail;
+  if (detail && typeof detail === 'object' && detail.code === 'admin_required') return true;
+  return true;
+};
+
+const adminForbiddenMessage =
+  'Acceso restringido: esta cuenta no es administradora o tu sesión expiró. Cierra sesión e ingresa con un usuario admin.';
+
 const clampInt = (value) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -92,7 +103,10 @@ export default function AdminDashboard() {
         headers: getAuthHeaders(null),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setUsers(data.users || []);
     } catch (e) {
       setError(e?.message || 'Error cargando usuarios');
@@ -111,7 +125,10 @@ export default function AdminDashboard() {
         headers: getAuthHeaders(null),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setSelectedUser(data.user);
       setSelectedLedger(data.ledger_events || []);
       setDrawerOpen(true);
@@ -161,6 +178,7 @@ export default function AdminDashboard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
         const parsed = parseFieldErrors(data);
         setFieldErrors(parsed);
         throw new Error(formatApiError(data, `Error ${res.status}`));
@@ -211,6 +229,7 @@ export default function AdminDashboard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
         const parsed = parseFieldErrors(data);
         setFieldErrors(parsed);
         throw new Error(formatApiError(data, `Error ${res.status}`));
@@ -244,6 +263,7 @@ export default function AdminDashboard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
         const parsed = parseFieldErrors(data);
         setFieldErrors(parsed);
         throw new Error(formatApiError(data, `Error ${res.status}`));
@@ -267,7 +287,10 @@ export default function AdminDashboard() {
         body: JSON.stringify({ is_active: !selectedUser.is_active }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       await openUser(selectedUser.id);
       await loadUsers();
     } catch (e) {
@@ -468,15 +491,21 @@ export default function AdminDashboard() {
                 <option value="individual">individual</option>
                 <option value="colegio">colegio</option>
               </select>
-              <input
-                value={createForm.institution_name}
-                onChange={(e) => {
-                  setFieldErrors((p) => ({ ...p, institution_name: undefined, _global: undefined }));
-                  setCreateForm((p) => ({ ...p, institution_name: e.target.value }));
-                }}
-                placeholder="institution_name (etiqueta)"
-                style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
-              />
+              {createForm.account_type === 'colegio' ? (
+                <input
+                  value={createForm.institution_name}
+                  onChange={(e) => {
+                    setFieldErrors((p) => ({ ...p, institution_name: undefined, _global: undefined }));
+                    setCreateForm((p) => ({ ...p, institution_name: e.target.value }));
+                  }}
+                  placeholder="Nombre de la institución"
+                  style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
+                />
+              ) : (
+                <div style={{ padding: '10px 12px', borderRadius: 10, border: '1px dashed rgba(148,163,184,0.22)', color: 'rgba(203,213,225,0.6)', fontSize: 12.5 }}>
+                  Institución (solo si tipo=colegio)
+                </div>
+              )}
               {fieldErrors.institution_name ? (
                 <div style={{ gridColumn: '1 / span 2', marginTop: -6, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
                   {fieldErrors.institution_name}
