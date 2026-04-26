@@ -106,6 +106,18 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
   - **Storage**: montar volúmenes persistentes para artefactos/archivos del backend (ej. `backend/data/**` / teacher context markdown).
   - **Criterio de éxito**: redeploy/restart no cambia el cupo usado ni “pierde” documentos.
 
+### Checklist mínimo (para mañana, sin sorpresas)
+
+- **DB persistente**:
+  - Volumen para Postgres (o Postgres gestionado).
+  - Backups (snapshot diario o dump) y prueba de restore.
+- **Teacher-context / wiki persistente**:
+  - Volumen montado para `backend/data/**` (incluye `data/teacher_context/users/{id}/...`).
+  - Confirmar permisos de escritura del contenedor.
+- **Prueba de redeploy**:
+  - Subir 1 documento, ver cuota usada, generar markdown teacher-context.
+  - Redeploy/restart → confirmar que el documento y la cuota siguen.
+
 ---
 
 ## Fase 3 — Producción (dominio, seguridad, observabilidad)
