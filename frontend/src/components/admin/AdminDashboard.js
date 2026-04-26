@@ -16,9 +16,20 @@ const fmtDate = (value) => {
   return d.toLocaleString();
 };
 
+const humanizeAdminDetailString = (raw) => {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const folded = s.toLowerCase();
+  if (folded.includes('email already registered')) return 'Ese email ya está registrado.';
+  if (folded === 'user not found') return 'Usuario no encontrado.';
+  if (folded.includes('incorrect email or password')) return 'Email o contraseña incorrectos.';
+  if (folded.includes('inactive user')) return 'La cuenta está inactiva.';
+  return s;
+};
+
 const formatApiError = (data, fallback) => {
   const detail = data?.detail;
-  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'string') return humanizeAdminDetailString(detail) || fallback;
   if (detail && typeof detail === 'object') {
     if (typeof detail.message === 'string') return detail.message;
     try {
@@ -34,12 +45,15 @@ const formatApiError = (data, fallback) => {
 const parseFieldErrors = (data) => {
   const detail = data?.detail;
   const out = {};
+  if (typeof detail === 'string') {
+    out._global = humanizeAdminDetailString(detail);
+  }
   // FastAPI/Pydantic típico: [{ loc: [...], msg, type }]
   if (Array.isArray(detail)) {
     for (const item of detail) {
       const loc = Array.isArray(item?.loc) ? item.loc : [];
       const field = String(loc[loc.length - 1] || '').trim();
-      const msg = String(item?.msg || '').trim();
+      const msg = humanizeAdminDetailString(item?.msg) || String(item?.msg || '').trim();
       if (!field || !msg) continue;
       if (!out[field]) out[field] = msg;
     }
@@ -50,6 +64,17 @@ const parseFieldErrors = (data) => {
   }
   return out;
 };
+
+const isAdminForbidden = (res, data) => {
+  if (!res) return false;
+  if (res.status !== 403) return false;
+  const detail = data?.detail;
+  if (detail && typeof detail === 'object' && detail.code === 'admin_required') return true;
+  return true;
+};
+
+const adminForbiddenMessage =
+  'Acceso restringido: esta cuenta no es administradora o tu sesión expiró. Cierra sesión e ingresa con un usuario admin.';
 
 const clampInt = (value) => {
   const n = Number(value);
@@ -92,7 +117,10 @@ export default function AdminDashboard() {
         headers: getAuthHeaders(null),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setUsers(data.users || []);
     } catch (e) {
       setError(e?.message || 'Error cargando usuarios');
@@ -111,7 +139,10 @@ export default function AdminDashboard() {
         headers: getAuthHeaders(null),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       setSelectedUser(data.user);
       setSelectedLedger(data.ledger_events || []);
       setDrawerOpen(true);
@@ -123,17 +154,36 @@ export default function AdminDashboard() {
   }, []);
 
   const createUser = useCallback(async () => {
+    const nextErrors = {};
+    const email = String(createForm.email || '').trim().toLowerCase();
+    const password = String(createForm.password || '');
+    const creditsInitial = clampInt(createForm.credits_initial);
+    const accountType = String(createForm.account_type || 'individual').trim();
+    const institutionName = String(createForm.institution_name || '').trim();
+
+    if (!email) nextErrors.email = 'El email es obligatorio.';
+    else if (!email.includes('@')) nextErrors.email = 'Ingresa un email válido.';
+    if (password.length < 8) nextErrors.password = 'La contraseña debe tener al menos 8 caracteres.';
+    if (creditsInitial < 0) nextErrors.credits_initial = 'Los créditos iniciales no pueden ser negativos.';
+    if (accountType === 'colegio' && institutionName.length < 2) {
+      nextErrors.institution_name = 'Escribe el nombre de la institución (mín. 2 caracteres).';
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
     setDrawerBusy(true);
     setError('');
     setFieldErrors({});
     try {
       const payload = {
-        email: createForm.email.trim(),
-        password: createForm.password,
+        email,
+        password,
         full_name: createForm.full_name?.trim() || null,
-        credits_initial: Number(createForm.credits_initial || 0),
-        account_type: createForm.account_type,
-        institution_name: createForm.institution_name?.trim() || null,
+        credits_initial: creditsInitial,
+        account_type: accountType,
+        institution_name: institutionName || null,
       };
       const res = await fetch(`${API_URL}/api/admin/users`, {
         method: 'POST',
@@ -141,7 +191,12 @@ export default function AdminDashboard() {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(formatApiError(data, `Error ${res.status}`));
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        const parsed = parseFieldErrors(data);
+        setFieldErrors(parsed);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       await loadUsers();
       setSelectedUser(data.user);
       setSelectedLedger(data.ledger_events || []);
@@ -188,6 +243,7 @@ export default function AdminDashboard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
         const parsed = parseFieldErrors(data);
         setFieldErrors(parsed);
         throw new Error(formatApiError(data, `Error ${res.status}`));
@@ -221,6 +277,7 @@ export default function AdminDashboard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
         const parsed = parseFieldErrors(data);
         setFieldErrors(parsed);
         throw new Error(formatApiError(data, `Error ${res.status}`));
@@ -244,7 +301,10 @@ export default function AdminDashboard() {
         body: JSON.stringify({ is_active: !selectedUser.is_active }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail?.message || data?.detail || `Error ${res.status}`);
+      if (!res.ok) {
+        if (isAdminForbidden(res, data)) throw new Error(adminForbiddenMessage);
+        throw new Error(formatApiError(data, `Error ${res.status}`));
+      }
       await openUser(selectedUser.id);
       await loadUsers();
     } catch (e) {
@@ -383,19 +443,35 @@ export default function AdminDashboard() {
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <input
                 value={createForm.email}
-                onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((p) => ({ ...p, email: undefined, _global: undefined }));
+                  setCreateForm((p) => ({ ...p, email: e.target.value }));
+                }}
                 placeholder="email"
                 style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
               />
               <input
                 value={createForm.password}
-                onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((p) => ({ ...p, password: undefined, _global: undefined }));
+                  setCreateForm((p) => ({ ...p, password: e.target.value }));
+                }}
                 placeholder="password"
-                type="text"
+                type="password"
                 spellCheck={false}
                 autoComplete="off"
                 style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
               />
+              {fieldErrors.email ? (
+                <div style={{ gridColumn: '1 / span 2', marginTop: -6, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
+                  {fieldErrors.email}
+                </div>
+              ) : null}
+              {fieldErrors.password ? (
+                <div style={{ gridColumn: '1 / span 2', marginTop: -6, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
+                  {fieldErrors.password}
+                </div>
+              ) : null}
               <input
                 value={createForm.full_name}
                 onChange={(e) => setCreateForm((p) => ({ ...p, full_name: e.target.value }))}
@@ -404,26 +480,56 @@ export default function AdminDashboard() {
               />
               <input
                 value={createForm.credits_initial}
-                onChange={(e) => setCreateForm((p) => ({ ...p, credits_initial: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((p) => ({ ...p, credits_initial: undefined, _global: undefined }));
+                  setCreateForm((p) => ({ ...p, credits_initial: e.target.value }));
+                }}
                 placeholder="créditos iniciales"
                 type="number"
                 min="0"
                 style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
               />
+              {fieldErrors.credits_initial ? (
+                <div style={{ gridColumn: '1 / span 2', marginTop: -6, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
+                  {fieldErrors.credits_initial}
+                </div>
+              ) : null}
               <select
                 value={createForm.account_type}
-                onChange={(e) => setCreateForm((p) => ({ ...p, account_type: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((p) => ({ ...p, institution_name: undefined, _global: undefined }));
+                  setCreateForm((p) => ({ ...p, account_type: e.target.value }));
+                }}
                 style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
               >
                 <option value="individual">individual</option>
                 <option value="colegio">colegio</option>
               </select>
-              <input
-                value={createForm.institution_name}
-                onChange={(e) => setCreateForm((p) => ({ ...p, institution_name: e.target.value }))}
-                placeholder="institution_name (etiqueta)"
-                style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
-              />
+              {createForm.account_type === 'colegio' ? (
+                <input
+                  value={createForm.institution_name}
+                  onChange={(e) => {
+                    setFieldErrors((p) => ({ ...p, institution_name: undefined, _global: undefined }));
+                    setCreateForm((p) => ({ ...p, institution_name: e.target.value }));
+                  }}
+                  placeholder="Nombre de la institución"
+                  style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(15,23,42,0.65)', color: '#e2e8f0' }}
+                />
+              ) : (
+                <div style={{ padding: '10px 12px', borderRadius: 10, border: '1px dashed rgba(148,163,184,0.22)', color: 'rgba(203,213,225,0.6)', fontSize: 12.5 }}>
+                  Institución (solo si tipo=colegio)
+                </div>
+              )}
+              {fieldErrors.institution_name ? (
+                <div style={{ gridColumn: '1 / span 2', marginTop: -6, color: '#fecaca', fontWeight: 800, fontSize: 12.5 }}>
+                  {fieldErrors.institution_name}
+                </div>
+              ) : null}
+              {fieldErrors._global ? (
+                <div style={{ gridColumn: '1 / span 2', marginTop: 2, color: '#fecaca', fontWeight: 900, fontSize: 13 }}>
+                  {fieldErrors._global}
+                </div>
+              ) : null}
             </div>
             <button
               type="button"

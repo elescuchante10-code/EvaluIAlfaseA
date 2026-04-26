@@ -216,6 +216,11 @@ def ensure_admin_bootstrap(db: Session) -> None:
     no existe, crea un usuario con rol admin y suscripción activa.
     """
     settings = get_settings()
+    env = str(getattr(settings, "APP_ENV", "") or "").strip().lower()
+    allow_in_prod = bool(getattr(settings, "ADMIN_BOOTSTRAP_ALLOW_IN_PROD", False))
+    if env in {"production", "prod"} and not allow_in_prod:
+        # En producción no se debe crear/promover un admin por env vars salvo override explícito.
+        return
     email = (settings.ADMIN_BOOTSTRAP_EMAIL or "").strip().lower()
     password = settings.ADMIN_BOOTSTRAP_PASSWORD
     if not email or not password:

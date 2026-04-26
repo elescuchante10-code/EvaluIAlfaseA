@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "EvaluAI Backend"
     DEBUG: bool = True
+    # Entorno (local|production). En producción se endurecen checks de seguridad.
+    APP_ENV: str = "local"
     
     # AI Providers
     GROQ_API_KEY: str = ""
@@ -25,6 +27,8 @@ class Settings(BaseSettings):
     # Bootstrap admin (opcional): crea o promueve a admin si coincide el email (README / init_db).
     ADMIN_BOOTSTRAP_EMAIL: str = "juliolopez4p@gmail.com"
     ADMIN_BOOTSTRAP_PASSWORD: str = "password123"
+    # En producción el bootstrap admin está deshabilitado salvo override explícito.
+    ADMIN_BOOTSTRAP_ALLOW_IN_PROD: bool = False
 
     # Wompi / billing
     WOMPI_ENVIRONMENT: str = "sandbox"
@@ -45,6 +49,22 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "1234"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 horas
+
+    @field_validator("SECRET_KEY", mode="after")
+    @classmethod
+    def _validate_secret_key(cls, value: str, info):  # type: ignore[no-untyped-def]
+        """
+        Fail-fast en producción si se dejó un SECRET_KEY inseguro por defecto.
+        En local se permite para no romper DX.
+        """
+        env = str((getattr(info, "data", {}) or {}).get("APP_ENV") or "").strip().lower()
+        if env in {"production", "prod"}:
+            v = str(value or "").strip()
+            if not v or v in {"1234", "change_me", "changeme"} or len(v) < 32:
+                raise ValueError(
+                    "SECRET_KEY inseguro. En producción debe venir de env y tener al menos 32 caracteres."
+                )
+        return value
     
     # CORS
     FRONTEND_URL: str = "https://evaluador-ib.vercel.app"
