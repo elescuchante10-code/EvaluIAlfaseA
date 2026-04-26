@@ -13,6 +13,8 @@ venv/
 env/
 .env
 .env.*
+# Permitir versionar plantilla de variables (sin secretos reales)
+!.env.example
 # Excepción: solo URL pública del API (sin secretos); Vercel puede sobrescribir vía env del proyecto
 !frontend/.env.production
 
