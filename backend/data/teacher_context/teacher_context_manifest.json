@@ -1,0 +1,26 @@
+{
+  "manifest_kind": "teacher_context_manifest",
+  "schema_version": "1",
+  "generated_at": "2026-04-25T23:08:38Z",
+  "retrieval_mode": "manifest_only",
+  "note": "Sin embeddings ni vector DB. Markdown derivado de extracción nativa; asignatura vive en el índice cliente (Mi Espacio IB).",
+  "documents": [
+    {
+      "document_id": 1,
+      "filename": "ensayo_demo.txt",
+      "markdown_status": "pending",
+      "markdown_relpath": null,
+      "api_markdown_url": "/api/documents/1/teacher-markdown"
+    },
+    {
+      "document_id": 2,
+      "filename": "guiafilosofia.pdf",
+      "markdown_status": "ready",
+      "markdown_relpath": "md/2.md",
+      "api_markdown_url": "/api/documents/2/teacher-markdown"
+    }
+  ],
+  "subject_index": {
+    "_note": "Claves por asignatura se completan en el cliente (teacher_context_index); el servidor registra documentos y rutas Markdown."
+  }
+}

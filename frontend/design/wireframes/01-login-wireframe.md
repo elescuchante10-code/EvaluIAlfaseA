@@ -1,0 +1,168 @@
+# Wireframe: Login
+
+## Vista Desktop (1024px+)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│                    [LOGO EVALUAI]                                   │
+│                                                                     │
+│              Evaluación académica inteligente                       │
+│                                                                     │
+│     ┌─────────────────────────────────────────────────────┐         │
+│     │                                                     │         │
+│     │              👤 Iniciar Sesión                      │         │
+│     │                                                     │         │
+│     │   ┌─────────────────────────────────────────┐       │         │
+│     │   │ 📧 Email                                │       │         │
+│     │   │ ┌───────────────────────────────────┐   │       │         │
+│     │   │ │ maria.profesora@email.com         │   │       │         │
+│     │   │ └───────────────────────────────────┘   │       │         │
+│     │   └─────────────────────────────────────────┘       │         │
+│     │                                                     │         │
+│     │   ┌─────────────────────────────────────────┐       │         │
+│     │   │ 🔒 Contraseña                           │       │         │
+│     │   │ ┌───────────────────────────────────┐   │       │         │
+│     │   │ │ ••••••••                          │ 👁 │       │         │
+│     │   │ └───────────────────────────────────┘   │       │         │
+│     │   └─────────────────────────────────────────┘       │         │
+│     │                                                     │         │
+│     │   [ ] Recordarme en este dispositivo                │         │
+│     │                                                     │         │
+│     │   ┌─────────────────────────────────────────┐       │         │
+│     │   │     🚀 Iniciar Sesión                   │       │         │
+│     │   └─────────────────────────────────────────┘       │         │
+│     │                                                     │         │
+│     │   ¿Olvidaste tu contraseña?                         │         │
+│     │                                                     │         │
+│     │   ─────────────── o ───────────────                 │         │
+│     │                                                     │         │
+│     │   ¿No tienes cuenta? Regístrate gratis              │         │
+│     │                                                     │         │
+│     └─────────────────────────────────────────────────────┘         │
+│                                                                     │
+│            © 2025 EvaluAI • Términos • Privacidad                   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+FONDO: Gradiente (#667eea → #764ba2)
+CARD: Blanco, border-radius: 16px, shadow: grande
+INPUTS: Altura 48px, border-radius: 8px
+BOTÓN: Gradiente, texto blanco, bold
+```
+
+---
+
+## Vista Mobile (375px)
+
+```
+┌─────────────────┐
+│                 │
+│   [LOGO]        │
+│                 │
+│  EvaluAI        │
+│                 │
+│  Iniciar        │
+│  Sesión         │
+│                 │
+│  ┌───────────┐  │
+│  │ 📧 Email  │  │
+│  │ ┌───────┐ │  │
+│  │ │       │ │  │
+│  │ └───────┘ │  │
+│  └───────────┘  │
+│                 │
+│  ┌───────────┐  │
+│  │ 🔒 Pass   │  │
+│  │ ┌───────┐ │  │
+│  │ │       │👁│  │
+│  │ └───────┘ │  │
+│  └───────────┘  │
+│                 │
+│  [ ] Recordarme │
+│                 │
+│  ┌───────────┐  │
+│  │  🚀       │  │
+│  │ Entrar    │  │
+│  └───────────┘  │
+│                 │
+│  ¿Olvidaste?    │
+│                 │
+│  ──── o ────    │
+│                 │
+│  Crear cuenta   │
+│                 │
+└─────────────────┘
+```
+
+---
+
+## Especificaciones Técnicas
+
+### Dimensiones Desktop
+- **Card width:** 420px máximo
+- **Padding card:** 40px
+- **Input height:** 48px
+- **Button height:** 52px
+- **Spacing entre elementos:** 20px
+
+### Dimensiones Mobile
+- **Padding horizontal:** 24px
+- **Full width inputs**
+- **Button full width**
+
+### Estados
+
+#### Input Focus
+```
+┌─────────────────┐
+│ Email           │
+│ ┌─────────────┐ │
+│ │ maria@email │ │  ← Border: 2px #6366F1
+│ └─────────────┘ │    Shadow: 0 0 0 3px rgba(99,102,241,0.1)
+└─────────────────┘
+```
+
+#### Error
+```
+┌─────────────────────────────────┐
+│ Email                           │
+│ ┌─────────────────────────────┐ │
+│ │ maria@email                 │ │  ← Border: 2px #EF4444
+│ └─────────────────────────────┘ │    Background: #FEF2F2
+│ ❌ Ingresa un email válido      │
+└─────────────────────────────────┘
+```
+
+#### Loading
+```
+┌─────────────────────────┐
+│  ⏳ Iniciando sesión... │  ← Spinner + texto
+│                         │    Button disabled
+└─────────────────────────┘
+```
+
+---
+
+## Interacciones
+
+| Elemento | Evento | Acción |
+|----------|--------|--------|
+| Input Email | Focus | Border color cambia a primario |
+| Input Password | Click 👁 | Toggle visibility password |
+| Button | Hover | Elevación + shadow aumenta |
+| Button | Click | Loading state, deshabilitado |
+| "Regístrate" | Click | Navega a /register |
+| "¿Olvidaste?" | Click | Navega a /forgot-password |
+
+---
+
+## Mensajes de Error
+
+| Escenario | Mensaje |
+|-----------|---------|
+| Email vacío | "El email es obligatorio" |
+| Email inválido | "Ingresa un email válido" |
+| Contraseña vacía | "La contraseña es obligatoria" |
+| Credenciales incorrectas | "Email o contraseña incorrectos" |
+| Cuenta no verificada | "Verifica tu email antes de continuar" |

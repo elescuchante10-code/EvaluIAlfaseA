@@ -1,0 +1,1202 @@
+/* ========================================
+   ESTILOS DEL EDITOR DE NOTAS AL PIE
+   ======================================== */
+
+/* Variables CSS */
+:root {
+  --color-rojo: #ef4444;
+  --color-azul: #3b82f6;
+  --color-verde: #22c55e;
+  --color-naranja: #f97316;
+  --color-gris: #6b7280;
+  
+  --bg-rojo: rgba(239, 68, 68, 0.1);
+  --bg-azul: rgba(59, 130, 246, 0.1);
+  --bg-verde: rgba(34, 197, 94, 0.1);
+  --bg-naranja: rgba(249, 115, 22, 0.1);
+  
+  --border-rojo: rgba(239, 68, 68, 0.3);
+  --border-azul: rgba(59, 130, 246, 0.3);
+  --border-verde: rgba(34, 197, 94, 0.3);
+  --border-naranja: rgba(249, 115, 22, 0.3);
+}
+
+/* ========================================
+   NOTA PIE CARD
+   ======================================== */
+
+.nota-pie-card {
+  border-left: 4px solid var(--color-gris);
+  background: #f9fafb;
+  border-radius: 0 8px 8px 0;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+}
+
+.nota-pie-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Colores por tipo */
+.nota-pie-card.nota-rojo {
+  border-left-color: var(--color-rojo);
+  background: var(--bg-rojo);
+}
+
+.nota-pie-card.nota-azul {
+  border-left-color: var(--color-azul);
+  background: var(--bg-azul);
+}
+
+.nota-pie-card.nota-verde {
+  border-left-color: var(--color-verde);
+  background: var(--bg-verde);
+}
+
+.nota-pie-card.nota-naranja {
+  border-left-color: var(--color-naranja);
+  background: var(--bg-naranja);
+}
+
+/* Estados */
+.nota-pie-card.estado-aceptada {
+  opacity: 0.9;
+}
+
+.nota-pie-card.estado-rechazada {
+  opacity: 0.5;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.nota-pie-card.estado-modificada {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Header de la nota */
+.nota-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.nota-numero-tipo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nota-numero {
+  background: #1f2937;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.nota-icono {
+  font-size: 1rem;
+}
+
+.nota-tipo-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.estado-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.estado-badge.estado-pendiente {
+  background: #fbbf24;
+  color: #92400e;
+}
+
+.estado-badge.estado-aceptada {
+  background: var(--color-verde);
+  color: white;
+}
+
+.estado-badge.estado-rechazada {
+  background: var(--color-rojo);
+  color: white;
+}
+
+.estado-badge.estado-modificada {
+  background: var(--color-azul);
+  color: white;
+}
+
+/* Contenido de la nota */
+.nota-contenido {
+  font-size: 0.875rem;
+}
+
+.nota-ubicacion {
+  margin-bottom: 0.75rem;
+}
+
+.nota-ubicacion .label {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.texto-seleccionado {
+  font-style: italic;
+  color: #374151;
+  margin-left: 0.5rem;
+}
+
+.nota-sugerencia {
+  margin-bottom: 0.75rem;
+}
+
+.nota-sugerencia .label {
+  display: block;
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.sugerencia-display {
+  padding: 0.5rem;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.cambio-original {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.arrow {
+  color: #6b7280;
+}
+
+.texto-nuevo {
+  font-weight: 500;
+  color: #111827;
+}
+
+.badge-modificado {
+  font-size: 0.625rem;
+  background: var(--color-azul);
+  color: white;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+}
+
+/* Edición de sugerencia */
+.edicion-sugerencia {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.edicion-sugerencia label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.input-original {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.input-sugerido {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+/* Explicación */
+.nota-explicacion {
+  margin-bottom: 0.75rem;
+}
+
+.btn-toggle-explicacion {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-toggle-explicacion:hover {
+  color: #374151;
+}
+
+.explicacion-texto {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #4b5563;
+  border-left: 2px solid #d1d5db;
+}
+
+/* Comentario del profesor */
+.nota-comentario-profesor {
+  margin-bottom: 0.75rem;
+}
+
+.nota-comentario-profesor label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.textarea-comentario {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  resize: vertical;
+}
+
+.textarea-comentario:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Acciones */
+.nota-acciones {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nota-acciones button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-aceptar {
+  background: var(--color-verde);
+  color: white;
+}
+
+.btn-aceptar:hover {
+  background: #16a34a;
+}
+
+.btn-rechazar {
+  background: white;
+  color: var(--color-rojo);
+  border: 1px solid var(--color-rojo) !important;
+}
+
+.btn-rechazar:hover {
+  background: var(--color-rojo);
+  color: white;
+}
+
+.btn-modificar,
+.btn-editar {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.btn-modificar:hover,
+.btn-editar:hover {
+  background: #e5e7eb;
+}
+
+.btn-guardar {
+  background: var(--color-azul);
+  color: white;
+}
+
+.btn-guardar:hover {
+  background: #2563eb;
+}
+
+.btn-cancelar {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.btn-cancelar:hover {
+  background: #e5e7eb;
+}
+
+.btn-deshaacer,
+.btn-cambiar-aceptar {
+  background: white;
+  border: 1px solid #d1d5db !important;
+}
+
+.btn-eliminar {
+  background: transparent;
+  color: var(--color-rojo);
+}
+
+/* ========================================
+   PÁRRAFO CON NOTAS
+   ======================================== */
+
+.parrafo-con-notas {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  background: white;
+}
+
+/* Semáforos */
+.parrafo-con-notas.semaforo-verde {
+  border-left: 4px solid var(--color-verde);
+}
+
+.parrafo-con-notas.semaforo-amarillo {
+  border-left: 4px solid #fbbf24;
+}
+
+.parrafo-con-notas.semaforo-naranja {
+  border-left: 4px solid var(--color-naranja);
+}
+
+.parrafo-con-notas.semaforo-rojo {
+  border-left: 4px solid var(--color-rojo);
+}
+
+/* Header del párrafo */
+.parrafo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.parrafo-info {
+  font-weight: 600;
+  color: #374151;
+}
+
+.parrafo-numero {
+  color: #6b7280;
+}
+
+.parrafo-tipo {
+  color: #9ca3af;
+  font-weight: normal;
+}
+
+.parrafo-calificacion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semaforo-icono {
+  font-size: 1.25rem;
+}
+
+.calificacion-valor {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #111827;
+}
+
+/* Texto del párrafo */
+.parrafo-texto {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+/* Marcas de notas en el texto */
+.nota-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-weight: bold;
+  margin: 0 1px;
+  transition: all 0.2s;
+}
+
+.nota-ref:hover {
+  transform: scale(1.2);
+}
+
+.nota-ref.nota-ref-rojo {
+  color: var(--color-rojo);
+  background: var(--bg-rojo);
+}
+
+.nota-ref.nota-ref-azul {
+  color: var(--color-azul);
+  background: var(--bg-azul);
+}
+
+.nota-ref.nota-ref-verde {
+  color: var(--color-verde);
+  background: var(--bg-verde);
+}
+
+.nota-ref.nota-ref-naranja {
+  color: var(--color-naranja);
+  background: var(--bg-naranja);
+}
+
+.nota-ref.nota-aceptada {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* Notas al pie del párrafo */
+.notas-pie-container {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #d1d5db;
+}
+
+.notas-pie-separador {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+}
+
+.notas-pie-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nota-pie-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.375rem;
+  border-radius: 4px;
+}
+
+.nota-pie-item.nota-rojo {
+  background: var(--bg-rojo);
+}
+
+.nota-pie-item.nota-azul {
+  background: var(--bg-azul);
+}
+
+.nota-pie-item.nota-verde {
+  background: var(--bg-verde);
+}
+
+.nota-pie-item.nota-naranja {
+  background: var(--bg-naranja);
+}
+
+.nota-pie-numero {
+  font-weight: bold;
+  color: #6b7280;
+}
+
+.nota-pie-texto {
+  color: #374151;
+}
+
+.badge-estado {
+  font-size: 0.625rem;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  background: var(--color-verde);
+  color: white;
+  border-radius: 4px;
+}
+
+.badge-estado.rechazada {
+  background: var(--color-rojo);
+}
+
+/* Acciones del párrafo */
+.parrafo-acciones {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.parrafo-acciones button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+}
+
+.parrafo-acciones button:hover {
+  background: #f9fafb;
+}
+
+.btn-aceptar-verdes {
+  background: var(--bg-verde) !important;
+  border-color: var(--color-verde) !important;
+  color: #166534 !important;
+}
+
+/* Tooltip de selección */
+.tooltip-seleccion {
+  position: absolute;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  min-width: 200px;
+}
+
+.tooltip-contenido p {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.tooltip-botones {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tooltip-botones button {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tooltip-botones .btn-aceptar {
+  background: var(--color-verde);
+  color: white;
+  border: none;
+}
+
+.tooltip-botones .btn-cancelar {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+}
+
+/* ========================================
+   EDITOR NOTAS PIE (Componente Principal)
+   ======================================== */
+
+.editor-notas-pie {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f3f4f6;
+}
+
+/* Header */
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.editor-titulo h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.documento-nombre {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.editor-acciones-header {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.editor-acciones-header button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-guardar {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.btn-guardar:hover {
+  background: #e5e7eb;
+}
+
+.btn-finalizar {
+  background: #111827;
+  color: white;
+}
+
+.btn-finalizar:hover {
+  background: #374151;
+}
+
+.btn-cancelar {
+  background: transparent;
+  color: #6b7280;
+  font-size: 1.25rem !important;
+  padding: 0.5rem !important;
+}
+
+/* Toolbar */
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vista-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.vista-selector button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.vista-selector button.activo {
+  background: #111827;
+  color: white;
+  border-color: #111827;
+}
+
+.filtro-semaforo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filtro-semaforo label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.filtro-semaforo select {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+/* Contenido principal */
+.editor-contenido {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-panel-principal {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+/* Vista individual */
+.vista-individual {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.navegacion-parrafos {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.btn-navegacion {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  cursor: pointer;
+}
+
+.btn-navegacion:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-navegacion:not(:disabled):hover {
+  background: #f9fafb;
+}
+
+.contador-parrafos {
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Notas detalle */
+.notas-detalle {
+  margin-top: 1.5rem;
+}
+
+.notas-detalle h4 {
+  margin: 0 0 1rem 0;
+  color: #374151;
+}
+
+.notas-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sin-notas {
+  text-align: center;
+  color: #6b7280;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+}
+
+.btn-aceptar-todas-verdes {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-verde);
+  border: 1px solid var(--color-verde);
+  color: #166534;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-aceptar-todas-verdes:hover {
+  background: var(--color-verde);
+  color: white;
+}
+
+/* Vista completa */
+.vista-completa {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.parrafo-resumen {
+  padding: 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.parrafo-resumen:hover {
+  border-color: #9ca3af;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.parrafo-resumen.activo {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+}
+
+.parrafo-header-resumen {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.parrafo-numero {
+  font-weight: 600;
+  color: #374151;
+}
+
+.semaforo-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.semaforo-badge.semaforo-verde {
+  background: var(--bg-verde);
+  color: #166534;
+}
+
+.semaforo-badge.semaforo-amarillo {
+  background: rgba(251, 191, 36, 0.2);
+  color: #92400e;
+}
+
+.semaforo-badge.semaforo-naranja {
+  background: var(--bg-naranja);
+  color: #9a3412;
+}
+
+.semaforo-badge.semaforo-rojo {
+  background: var(--bg-rojo);
+  color: #991b1b;
+}
+
+.parrafo-preview {
+  margin: 0 0 0.5rem 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.parrafo-notas-resumen {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+/* Panel lateral */
+.editor-panel-lateral {
+  width: 300px;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.panel-seccion {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.panel-seccion:last-child {
+  border-bottom: none;
+}
+
+.panel-seccion h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Progreso */
+.progreso-barra {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.progreso-fill {
+  height: 100%;
+  background: var(--color-verde);
+  transition: width 0.3s ease;
+}
+
+/* Stats de notas */
+.stats-notas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.stat-item {
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.stat-total,
+.stat-numero {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.stat-item span:last-child {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.stat-item.pendientes .stat-numero {
+  color: #fbbf24;
+}
+
+.stat-item.aceptadas .stat-numero {
+  color: var(--color-verde);
+}
+
+.alerta-roja {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg-rojo);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: #991b1b;
+}
+
+/* Acciones globales */
+.btn-accion-global {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-verde);
+  border: 1px solid var(--color-verde);
+  border-radius: 6px;
+  color: #166534;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-accion-global small {
+  font-weight: normal;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.btn-accion-global:hover {
+  background: var(--color-verde);
+  color: white;
+}
+
+/* Calificación global */
+.calificacion-valor-global {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #111827;
+  text-align: center;
+}
+
+.semaforo-global {
+  text-align: center;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.semaforo-global.semaforo-verde {
+  background: var(--bg-verde);
+  color: #166534;
+}
+
+.semaforo-global.semaforo-amarillo {
+  background: rgba(251, 191, 36, 0.2);
+  color: #92400e;
+}
+
+.semaforo-global.semaforo-rojo {
+  background: var(--bg-rojo);
+  color: #991b1b;
+}
+
+/* Chat integrado */
+.editor-chat {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #f3f4f6;
+  font-weight: 500;
+  color: #374151;
+}
+
+.chat-header button {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.chat-mensajes {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+}
+
+.chat-bienvenida {
+  text-align: center;
+  color: #6b7280;
+  padding: 2rem;
+}
+
+.chat-bienvenida p:first-child {
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-mensaje {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.chat-mensaje.usuario {
+  background: #f3f4f6;
+  margin-left: 2rem;
+}
+
+.chat-mensaje.ia {
+  background: #eff6ff;
+  margin-right: 2rem;
+}
+
+.chat-mensaje.sistema {
+  background: #fef3c7;
+  font-size: 0.875rem;
+}
+
+.chat-autor {
+  font-size: 1.25rem;
+}
+
+.chat-contenido {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.chat-procesando {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  padding: 1rem;
+}
+
+.puntos {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.chat-input {
+  display: flex;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  gap: 0.75rem;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.chat-input button {
+  padding: 0.625rem 1rem;
+  background: #111827;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Scrollbar personalizado */
+.editor-panel-principal::-webkit-scrollbar,
+.editor-panel-lateral::-webkit-scrollbar,
+.chat-mensajes::-webkit-scrollbar {
+  width: 8px;
+}
+
+.editor-panel-principal::-webkit-scrollbar-track,
+.editor-panel-lateral::-webkit-scrollbar-track,
+.chat-mensajes::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.editor-panel-principal::-webkit-scrollbar-thumb,
+.editor-panel-lateral::-webkit-scrollbar-thumb,
+.chat-mensajes::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.editor-panel-principal::-webkit-scrollbar-thumb:hover,
+.editor-panel-lateral::-webkit-scrollbar-thumb:hover,
+.chat-mensajes::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

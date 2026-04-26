@@ -1,0 +1,35 @@
+<svg width="1400" height="860" viewBox="0 0 1400 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="1400" y1="0" x2="0" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366F1" stop-opacity="0.35"/>
+      <stop offset="0.55" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#10B981" stop-opacity="0.14"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1400" height="860" rx="26" fill="#0B1222"/>
+  <rect x="24" y="24" width="1352" height="90" rx="18" fill="#0F172A" stroke="rgba(148,163,184,0.25)"/>
+  <circle cx="60" cy="69" r="9" fill="#F87171"/>
+  <circle cx="88" cy="69" r="9" fill="#FBBF24"/>
+  <circle cx="116" cy="69" r="9" fill="#22C55E"/>
+  <rect x="156" y="54" width="240" height="30" rx="10" fill="rgba(148,163,184,0.16)"/>
+  <rect x="24" y="136" width="392" height="700" rx="22" fill="#0F172A" stroke="rgba(148,163,184,0.18)"/>
+  <rect x="438" y="136" width="938" height="420" rx="22" fill="#0F172A" stroke="rgba(148,163,184,0.18)"/>
+  <rect x="438" y="578" width="454" height="258" rx="22" fill="#0F172A" stroke="rgba(148,163,184,0.18)"/>
+  <rect x="922" y="578" width="454" height="258" rx="22" fill="#0F172A" stroke="rgba(148,163,184,0.18)"/>
+  <rect x="54" y="168" width="332" height="16" rx="8" fill="rgba(148,163,184,0.20)"/>
+  <rect x="54" y="210" width="260" height="14" rx="7" fill="rgba(148,163,184,0.14)"/>
+  <rect x="54" y="240" width="290" height="14" rx="7" fill="rgba(148,163,184,0.14)"/>
+  <rect x="54" y="270" width="240" height="14" rx="7" fill="rgba(148,163,184,0.14)"/>
+  <rect x="466" y="166" width="320" height="18" rx="9" fill="rgba(148,163,184,0.20)"/>
+  <rect x="466" y="210" width="840" height="308" rx="18" fill="url(#g)" opacity="0.85"/>
+  <rect x="466" y="606" width="406" height="20" rx="10" fill="rgba(148,163,184,0.18)"/>
+  <rect x="466" y="646" width="406" height="152" rx="16" fill="rgba(148,163,184,0.10)"/>
+  <rect x="950" y="606" width="406" height="20" rx="10" fill="rgba(148,163,184,0.18)"/>
+  <rect x="950" y="646" width="406" height="152" rx="16" fill="rgba(148,163,184,0.10)"/>
+  <text x="700" y="500" text-anchor="middle" fill="rgba(226,232,240,0.80)" font-family="Inter, ui-sans-serif, system-ui" font-size="22" font-weight="700">
+    Reemplaza este SVG por una captura real del dashboard (PNG/JPG)
+  </text>
+  <text x="700" y="532" text-anchor="middle" fill="rgba(203,213,225,0.70)" font-family="Inter, ui-sans-serif, system-ui" font-size="16">
+    /frontend/public/assets/dashboard-screenshot.png
+  </text>
+</svg>

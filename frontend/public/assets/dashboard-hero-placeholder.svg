@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="h" x1="0" y1="0" x2="1600" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1e1b4b" stop-opacity="0.5"/>
+      <stop offset="0.5" stop-color="#0f172a" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="r" x1="800" y1="120" x2="800" y2="880" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" rx="28" fill="url(#h)"/>
+  <rect x="48" y="48" width="1504" height="904" rx="20" stroke="rgba(148,163,184,0.22)" stroke-width="1" fill="rgba(15,23,42,0.55)"/>
+  <rect x="72" y="80" width="320" height="840" rx="14" fill="rgba(2,6,23,0.5)" stroke="rgba(148,163,184,0.12)"/>
+  <rect x="416" y="80" width="1112" height="520" rx="16" fill="url(#r)" stroke="rgba(99,102,241,0.2)"/>
+  <rect x="416" y="624" width="544" height="296" rx="14" fill="rgba(2,6,23,0.45)" stroke="rgba(148,163,184,0.1)"/>
+  <rect x="984" y="624" width="544" height="296" rx="14" fill="rgba(2,6,23,0.45)" stroke="rgba(148,163,184,0.1)"/>
+  <text x="800" y="478" text-anchor="middle" fill="rgba(226,232,240,0.55)" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="600">
+    TODO equipo
+  </text>
+  <text x="800" y="518" text-anchor="middle" fill="rgba(148,163,184,0.75)" font-family="ui-monospace,Menlo,monospace" font-size="15" font-weight="500">
+    Añade /public/assets/dashboard-hero.png (opc. dashboard-hero@2x.png)
+  </text>
+</svg>
