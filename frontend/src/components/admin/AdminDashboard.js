@@ -16,9 +16,20 @@ const fmtDate = (value) => {
   return d.toLocaleString();
 };
 
+const humanizeAdminDetailString = (raw) => {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const folded = s.toLowerCase();
+  if (folded.includes('email already registered')) return 'Ese email ya está registrado.';
+  if (folded === 'user not found') return 'Usuario no encontrado.';
+  if (folded.includes('incorrect email or password')) return 'Email o contraseña incorrectos.';
+  if (folded.includes('inactive user')) return 'La cuenta está inactiva.';
+  return s;
+};
+
 const formatApiError = (data, fallback) => {
   const detail = data?.detail;
-  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'string') return humanizeAdminDetailString(detail) || fallback;
   if (detail && typeof detail === 'object') {
     if (typeof detail.message === 'string') return detail.message;
     try {
@@ -34,12 +45,15 @@ const formatApiError = (data, fallback) => {
 const parseFieldErrors = (data) => {
   const detail = data?.detail;
   const out = {};
+  if (typeof detail === 'string') {
+    out._global = humanizeAdminDetailString(detail);
+  }
   // FastAPI/Pydantic típico: [{ loc: [...], msg, type }]
   if (Array.isArray(detail)) {
     for (const item of detail) {
       const loc = Array.isArray(item?.loc) ? item.loc : [];
       const field = String(loc[loc.length - 1] || '').trim();
-      const msg = String(item?.msg || '').trim();
+      const msg = humanizeAdminDetailString(item?.msg) || String(item?.msg || '').trim();
       if (!field || !msg) continue;
       if (!out[field]) out[field] = msg;
     }
