@@ -165,7 +165,7 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
 
 ### Checklist de calidad (impecable)
 
-- ⬜ **[Dev] Validaciones UI alineadas con backend**
+- ✅ **[Dev] Validaciones UI alineadas con backend** (2026-04-26)
   - Password mínimo **8 caracteres** (evitar error Pydantic visible).
   - Email requerido y formato válido.
   - Créditos: numérico; defaults claros.
@@ -176,15 +176,15 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
   - Tipo: `individual` / `institutional` (labels consistentes).
   - Si `institutional`: `institution_name` requerido.
 
-- ⬜ **[Dev] Manejo de errores y mensajes**
+- ✅ **[Dev] Manejo de errores y mensajes** (2026-04-26)
   - Traducir errores técnicos (Pydantic/stack) a mensajes humanos (ej. “La contraseña debe tener mínimo 8 caracteres”).
   - Mostrar errores por campo + banner general solo si aplica.
   - Estados de carga (crear/buscar/exportar) con feedback visible.
 
-- ⬜ **[Dev] Seguridad y permisos**
+- ✅ **[Dev] Seguridad y permisos** (2026-04-26)
   - Restringir acceso del panel admin (solo rol admin) y redirección si no autorizado.
   - Verificar que endpoints `/api/admin/*` exijan JWT + rol admin.
-  - Deshabilitar bootstrap admin en prod (solo para local) y rotar llaves.
+  - Deshabilitar bootstrap admin en prod por defecto (`APP_ENV=production` + `ADMIN_BOOTSTRAP_ALLOW_IN_PROD=false`) y rotar llaves.
 
 - ⬜ **[Dev] UX**
   - Tabla: paginación o lazy-load si crece.
@@ -192,7 +192,7 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
   - Formularios: limpiar después de “crear”, y refrescar lista.
   - Accesibilidad: focus states, labels, `aria-live` para errores.
 
-- ⬜ **[Dev] Pruebas de humo (obligatorio antes de prod)**
+- ✅ **[Dev] Pruebas de humo (obligatorio antes de prod)** (2026-04-26)
   - Login como admin.
   - Listar usuarios.
   - Buscar usuario por email.
@@ -205,7 +205,7 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
 
 ### Estado / notas
 
-- 🔴 **Riesgo actual**: error visible de Pydantic por `new_password` demasiado corto (mínimo 8). Esto debe resolverse con validación UI + mapeo de error backend → mensaje humano.
+- ✅ **Riesgo mitigado**: validación UI para `new_password` ≥ 8 + mensajes humanos; smoke real contra backend OK.
 
 ---
 
@@ -287,3 +287,19 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
 
 - ⬜ **[Dev] Observabilidad (confianza)**
   - Exponer en respuesta del chat un resumen opcional del retrieval (`documents_read`, `snippets_used`, `note`) para soporte.
+
+---
+
+## Punto 6 — Motor IA “Evaluador” (revisión final antes de clientes)
+
+**Objetivo**: confirmar que el asistente se comporta como **evaluador pedagógico** (no solo “chat”), consistente para distintas asignaturas, y que el grounding por documento/rúbrica/wiki mejora precisión sin sesgos ni fugas.
+
+### Pendiente para mañana
+
+- ⬜ **[Dev/Producto] Suite de casos por asignatura (smoke)**  
+  - 2–3 casos Humanidades + 2–3 casos Ciencias/Matemáticas + 1 caso idioma.  
+  - Verificar: tono, estructura de retroalimentación, alineación a rúbrica, y no inventar criterios.
+- ⬜ **[Dev] Revisión de prompts/roles (si aplica)**  
+  - Solo si los casos fallan: cambios mínimos y testeados, sin romper `api/evaluate/*`.
+- ⬜ **[Dev] Confirmar grounding**  
+  - Evidencia: snippets/teacher-context usados cuando corresponde; respuesta no contradice documentos.
