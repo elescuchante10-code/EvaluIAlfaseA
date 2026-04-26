@@ -10,25 +10,35 @@ function publicAsset(path) {
   return `${base}${p}`;
 }
 
+const DASHBOARD_WEBP = publicAsset('/assets/dashboard-screenshot.webp');
+const DASHBOARD_PNG = publicAsset('/assets/dashboard-screenshot.png');
+const DASHBOARD_FALLBACK_SVG = publicAsset('/assets/dashboard-screenshot-placeholder.svg');
+
 /**
- * Hero video (público /assets/…):
- * - evaluai-dashboard-demo.mp4 (recomendado: Safari y muchos móviles no reproducen WebM)
- * - evaluai-dashboard-demo.webm
- * - evaluai-dashboard-demo-poster.jpg y .vtt opcionales
+ * Vídeo demo opcional en `public/assets/` (p. ej. MP4 + WebM + poster).
  */
 const DEMO_MP4 = publicAsset('/assets/evaluai-dashboard-demo.mp4');
 const DEMO_WEBM = publicAsset('/assets/evaluai-dashboard-demo.webm');
 const DEMO_POSTER = publicAsset('/assets/evaluai-dashboard-demo-poster.jpg');
 const DEMO_VTT = publicAsset('/assets/evaluai-dashboard-demo.vtt');
 
+function isLikelyBinaryAssetResponse(response) {
+  const ct = (response.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('text/html')) return false;
+  return true;
+}
+
 async function probeAsset(url) {
   try {
     const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-    if (head.ok) return true;
-    // Varios servidores / proxies responden 404 o 501 a HEAD aunque GET funcione.
+    if (head.ok) {
+      if (!isLikelyBinaryAssetResponse(head)) return false;
+      return true;
+    }
     if (head.status === 405 || head.status === 404 || head.status === 501) {
       const r = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, cache: 'no-store' });
-      return r.ok || r.status === 206;
+      if (!(r.ok || r.status === 206)) return false;
+      return isLikelyBinaryAssetResponse(r);
     }
     return false;
   } catch {
@@ -129,9 +139,78 @@ function MiniFAQ({ items }) {
   );
 }
 
-function HeroDemo() {
-  const [mode, setMode] = useState('checking'); // checking | video | fallback
-  const [fallbackKind, setFallbackKind] = useState('missing'); // missing | decode
+/** Captura del producto (WebP/PNG en `public/assets/`). */
+function HeroScreenshot() {
+  const [state, setState] = useState('checking'); // checking | ready | svg
+  const [hasWebp, setHasWebp] = useState(false);
+  const [hasPng, setHasPng] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const [webp, png] = await Promise.all([probeAsset(DASHBOARD_WEBP), probeAsset(DASHBOARD_PNG)]);
+      if (cancel) return;
+      if (webp || png) {
+        setHasWebp(webp);
+        setHasPng(png);
+        setState('ready');
+      } else {
+        setState('svg');
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  const alt =
+    'Captura del workspace Evaluar de EvaluAI: barra lateral con pasos de rúbrica activa y documento, ' +
+    'área central del evaluador con el texto del estudiante y una nota de feedback anclado, panel de resumen a la derecha ' +
+    'y franja de chat contextual en la parte inferior.';
+
+  return (
+    <div className="lp-heroShot lp-heroDemo" aria-describedby="hero-shot-caption">
+      <div className="lp-heroShot__radial" aria-hidden="true" />
+      <div className="lp-heroShot__frame">
+        <div className="lp-heroShot__shine" aria-hidden="true" />
+        {state === 'checking' ? <div className="lp-demoSkeleton" aria-hidden="true" /> : null}
+        {state === 'ready' ? (
+          <picture className="lp-heroPicture">
+            {hasWebp ? <source srcSet={DASHBOARD_WEBP} type="image/webp" /> : null}
+            <img
+              className="lp-heroShot__img"
+              src={hasPng ? DASHBOARD_PNG : DASHBOARD_WEBP}
+              alt={alt}
+              width={1400}
+              height={880}
+              decoding="async"
+              fetchPriority="high"
+              sizes="(max-width: 1100px) 100vw, min(1040px, 100vw)"
+            />
+          </picture>
+        ) : null}
+        {state === 'svg' ? (
+          <img
+            className="lp-heroShot__img"
+            src={DASHBOARD_FALLBACK_SVG}
+            alt={alt}
+            width={1400}
+            height={860}
+            decoding="async"
+            fetchPriority="high"
+          />
+        ) : null}
+      </div>
+      <p id="hero-shot-caption" className="lp-heroShot__caption">
+        Vista del flujo Evaluar: documento, feedback y resumen en un solo lugar.
+      </p>
+    </div>
+  );
+}
+
+function DemoVideoSection() {
+  const [mode, setMode] = useState('checking');
+  const [fallbackKind, setFallbackKind] = useState('missing');
   const [hasMp4, setHasMp4] = useState(false);
   const [hasWebm, setHasWebm] = useState(false);
   const [hasPoster, setHasPoster] = useState(false);
@@ -157,7 +236,7 @@ function HeroDemo() {
         setMode('video');
       } else {
         setFallbackKind('missing');
-        setMode('fallback');
+        setMode('hidden');
       }
     })();
     return () => {
@@ -165,44 +244,59 @@ function HeroDemo() {
     };
   }, []);
 
+  if (mode === 'hidden' || mode === 'checking') {
+    return null;
+  }
+
   return (
-    <div className="lp-heroShot lp-heroDemo">
-      <div className="lp-heroShot__radial" aria-hidden="true" />
-      <div className="lp-heroShot__frame">
-        <div className="lp-heroShot__shine" aria-hidden="true" />
-        {mode === 'checking' ? <div className="lp-demoSkeleton" aria-hidden="true" /> : null}
-        {mode === 'video' ? (
-          <div className="lp-heroVideoWrap">
-            <video
-              className="lp-heroVideo"
-              poster={hasPoster ? DEMO_POSTER : undefined}
-              controls
-              playsInline
-              preload="metadata"
-              muted
-              aria-label="Recorrido del dashboard de EvaluAI"
-              onError={onVideoError}
-            >
-              {hasMp4 ? <source src={DEMO_MP4} type="video/mp4" /> : null}
-              {hasWebm ? <source src={DEMO_WEBM} type="video/webm" /> : null}
-              {hasVtt ? (
-                <track kind="captions" src={DEMO_VTT} srcLang="es" label="Español" default />
-              ) : null}
-              <p className="lp-videoFallback">Tu navegador no soporta video HTML5.</p>
-            </video>
+    <section className="lp-section lp-section--tight" id="demo" aria-labelledby="demo-title">
+      <div className="lp-wrap">
+        <header className="lp-secHead lp-reveal" data-reveal>
+          <p className="lp-secHead__k">Opcional</p>
+          <h2 id="demo-title" className="lp-secHead__t">
+            Recorrido en vídeo
+          </h2>
+          <p className="lp-secHead__s">
+            Si hay un archivo de demostración en <span className="lp-code">public/assets/</span>, aparece aquí sin
+            sustituir la captura del hero.
+          </p>
+        </header>
+        <div className="lp-heroShot lp-heroDemo lp-reveal" data-reveal>
+          <div className="lp-heroShot__radial" aria-hidden="true" />
+          <div className="lp-heroShot__frame">
+            <div className="lp-heroShot__shine" aria-hidden="true" />
+            {mode === 'video' ? (
+              <div className="lp-heroVideoWrap">
+                <video
+                  className="lp-heroVideo"
+                  poster={hasPoster ? DEMO_POSTER : undefined}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  muted
+                  aria-label="Recorrido en vídeo del dashboard de EvaluAI"
+                  onError={onVideoError}
+                >
+                  {hasMp4 ? <source src={DEMO_MP4} type="video/mp4" /> : null}
+                  {hasWebm ? <source src={DEMO_WEBM} type="video/webm" /> : null}
+                  {hasVtt ? <track kind="captions" src={DEMO_VTT} srcLang="es" label="Español" default /> : null}
+                  <p className="lp-videoFallback">Tu navegador no soporta vídeo HTML5.</p>
+                </video>
+              </div>
+            ) : null}
+            {mode === 'fallback' ? (
+              <div className="lp-demoEmpty" role="status">
+                <p className="lp-demoEmpty__text">
+                  {fallbackKind === 'decode'
+                    ? 'No se pudo reproducir este vídeo en este navegador. Prueba con Chrome o Firefox.'
+                    : 'No hay vídeo de demostración en el despliegue actual.'}
+                </p>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        {mode === 'fallback' ? (
-          <div className="lp-demoEmpty" role="status">
-            <p className="lp-demoEmpty__text">
-              {fallbackKind === 'decode'
-                ? 'No se pudo reproducir este vídeo en este navegador. Prueba con Chrome o Firefox.'
-                : 'No hay vídeo de demostración disponible.'}
-            </p>
-          </div>
-        ) : null}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -365,9 +459,10 @@ export default function LandingPage({
             </span>
             <span className="lp-brand__name">EvaluAI</span>
           </div>
-          <nav className="lp-bar__nav" aria-label="Secciones">
-            <NavAnchor href="#pasos">Flujo</NavAnchor>
-            <NavAnchor href="#features">Capacidades</NavAnchor>
+          <nav className="lp-bar__nav" aria-label="Secciones de la página">
+            <NavAnchor href="#valor">Valor</NavAnchor>
+            <NavAnchor href="#pasos">Cómo funciona</NavAnchor>
+            <NavAnchor href="#features">Funciones</NavAnchor>
             <NavAnchor href="#workspace">Workspace</NavAnchor>
             <NavAnchor href="#pricing">Precios</NavAnchor>
             <NavAnchor href="#faq">FAQ</NavAnchor>
@@ -396,23 +491,39 @@ export default function LandingPage({
       </header>
 
       <main id="main">
-        {/* —— Hero (patrón visual tipo Astra: grid + glow + marco app) —— */}
         <section className="lp-hero" aria-labelledby="hero-title">
           <div className="lp-wrap">
             <div className="lp-hero__intro">
               <Badge>Evaluación IB con rúbrica y documentos reales</Badge>
               <h1 id="hero-title" className={`lp-title${runHeroTextReveal ? ' lp-textReveal' : ''}`}>
-                Deja de perder tus noches corrigiendo. Evalúa con la precisión de un experto en segundos.
+                Evaluaciones IB más claras, más rápidas y con tu criterio al centro
               </h1>
               <p className={`lp-lead${runHeroTextReveal ? ' lp-textReveal' : ''}`}>
-                EvaluAI elimina la fricción entre tu rúbrica y el feedback. Organiza tu material, evalúa documentos en
-                cualquier formato y potencia tu criterio con IA que realmente entiende tus necesidades. Menos clics, más
-                feedback de calidad sin fricción.
+                EvaluAI conecta tu rúbrica con el documento del estudiante: organizas material IB, evalúas en Word o
+                PDF, apoyas el feedback con IA y cierras con un resumen que puedes revisar y ajustar antes de entregar.
               </p>
-              <div className="lp-hero__actions">
-                <a className="lp-btn lp-btn--primary" href="#pricing" aria-label="Ir a planes y créditos">
+              <div className="lp-hero__actions" role="group" aria-label="Acciones principales">
+                <a className="lp-btn lp-btn--primary" href="#pricing" aria-label="Ir a la sección de planes y créditos">
                   {subscribeLabel}
                 </a>
+                <button
+                  type="button"
+                  className="lp-btn lp-btn--ghost"
+                  onClick={() => runAuthTransition(onGoRegister)}
+                  disabled={isAuthTransitioning}
+                  aria-busy={isAuthTransitioning ? 'true' : 'false'}
+                >
+                  Crear cuenta gratis
+                </button>
+                <button
+                  type="button"
+                  className="lp-btn lp-btn--ghost"
+                  onClick={() => runAuthTransition(onGoLogin)}
+                  disabled={isAuthTransitioning}
+                  aria-busy={isAuthTransitioning ? 'true' : 'false'}
+                >
+                  Ya tengo cuenta
+                </button>
               </div>
               {notice ? (
                 <div className="lp-alert" role="status" aria-live="polite">
@@ -421,31 +532,65 @@ export default function LandingPage({
                 </div>
               ) : null}
             </div>
-            <HeroDemo />
+            <HeroScreenshot />
           </div>
         </section>
 
-        {/* Social proof ligero (sin marcas inventadas) */}
         <section className="lp-band" aria-label="Enfoque del producto">
           <div className="lp-wrap lp-band__inner lp-reveal" data-reveal>
             <span className="lp-chip">Enfoque IB</span>
             <span className="lp-chip">Rúbricas personalizadas</span>
-            <span className="lp-chip">Feedback anclado</span>
+            <span className="lp-chip">Feedback anclado al texto</span>
             <span className="lp-chip">Lotes hasta 10</span>
             <span className="lp-chip">Pago con Wompi</span>
           </div>
         </section>
 
-        <section className="lp-section" id="pasos">
+        <section className="lp-section" id="valor">
+          <div className="lp-wrap">
+            <SectionHeader
+              kicker="Por qué EvaluAI"
+              title="Menos fricción, más tiempo para enseñar"
+              subtitle="Un solo workspace para material IB, corrección asistida y chat contextual sin perder el control pedagógico."
+            />
+            <ul className="lp-valueGrid">
+              <li className="lp-valueCard lp-reveal" data-reveal>
+                <h3 className="lp-valueCard__t">Tu rúbrica manda</h3>
+                <p className="lp-prose">
+                  La IA respeta la rúbrica activa y la metodología que definas: acelera borradores y criterios, no sustituye
+                  tu juicio en el editor.
+                </p>
+              </li>
+              <li className="lp-valueCard lp-reveal" data-reveal>
+                <h3 className="lp-valueCard__t">Documentos de verdad</h3>
+                <p className="lp-prose">
+                  Sube PDF o Word y trabaja sobre el contenido extraído: selección de fragmentos, notas y feedback
+                  anclado donde el estudiante lo necesita.
+                </p>
+              </li>
+              <li className="lp-valueCard lp-reveal" data-reveal>
+                <h3 className="lp-valueCard__t">Flujo que se entiende</h3>
+                <p className="lp-prose">
+                  Pasos claros (rúbrica → documento → evaluación), resumen lateral y chat integrado para que no saltes
+                  entre herramientas sueltas.
+                </p>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="lp-section lp-section--alt" id="pasos">
           <div className="lp-wrap">
             <SectionHeader
               kicker="Flujo en Evaluar"
               title="Cómo funciona"
-              subtitle="Tres pasos guiados en la UI: rúbrica activa → documento → evaluación y corrección."
+              subtitle="Tres pasos guiados en la interfaz: rúbrica activa, documento del estudiante y evaluación con cierre."
             />
             <ol className="lp-steps">
               <li className="lp-reveal" data-reveal>
-                <span className="lp-steps__n">1</span>
+                <span className="lp-steps__n" aria-hidden="true">
+                  1
+                </span>
                 <div>
                   <h3 className="lp-h3">Rúbrica activa</h3>
                   <p className="lp-prose">
@@ -455,22 +600,26 @@ export default function LandingPage({
                 </div>
               </li>
               <li className="lp-reveal" data-reveal>
-                <span className="lp-steps__n">2</span>
+                <span className="lp-steps__n" aria-hidden="true">
+                  2
+                </span>
                 <div>
                   <h3 className="lp-h3">Documento</h3>
                   <p className="lp-prose">
                     Sube el documento del estudiante (Word, PDF o texto) y ábrelo en el evaluador para revisar con
-                    contexto.
+                    contexto completo.
                   </p>
                 </div>
               </li>
               <li className="lp-reveal" data-reveal>
-                <span className="lp-steps__n">3</span>
+                <span className="lp-steps__n" aria-hidden="true">
+                  3
+                </span>
                 <div>
                   <h3 className="lp-h3">Evaluación y cierre</h3>
                   <p className="lp-prose">
                     Apóyate en la IA para acelerar criterios y feedback. Ajusta con selección de texto, notas y resumen.
-                    Exporta o entrega cuando tu flujo lo requiera.
+                    Exporta o entrega cuando tu proceso lo requiera.
                   </p>
                 </div>
               </li>
@@ -478,28 +627,28 @@ export default function LandingPage({
           </div>
         </section>
 
-        <section className="lp-section lp-section--alt" id="features">
+        <section className="lp-section" id="features">
           <div className="lp-wrap">
             <SectionHeader
-              kicker="Capacidades"
-              title="Lo esencial del producto"
-              subtitle="Superficies y rutas que verás en la app hoy; sin prometer módulos que no existan en la UI."
+              kicker="Funciones"
+              title="Lo esencial que verás en la app"
+              subtitle="Superficies y rutas reales de hoy: sin prometer módulos que aún no existan en la interfaz."
             />
             <div className="lp-grid3">
               <FeatureItem title="Documentos reales">
-                Sube Word, PDF o texto y trabaja con el documento en el evaluador sin copiar y pegar.
+                Sube Word, PDF o texto y trabaja con el documento en el evaluador sin copiar y pegar entre ventanas.
               </FeatureItem>
               <FeatureItem title="Evaluación asistida">
-                La IA acompaña tu criterio y tu rúbrica activa; tú mantienes control total en el editor.
+                La IA acompaña tu criterio y tu rúbrica activa; tú mantienes el control en el editor y en el resumen.
               </FeatureItem>
               <FeatureItem title="Chat contextual">
                 Un copiloto dentro del documento para aclarar criterios y redactar feedback sin salir del flujo.
               </FeatureItem>
               <FeatureItem title="Asistente IA">
-                Un espacio aparte para planeación IB y consultas amplias, sin mezclarlo con la corrección.
+                Un espacio aparte para planeación IB y consultas amplias, separado del chat del evaluador.
               </FeatureItem>
               <FeatureItem title="Lotes">
-                Procesamiento por lotes (hasta 10 documentos) cuando trabajas varios entregables similares.
+                Procesamiento por lotes (hasta 10 documentos) cuando trabajas varios entregables parecidos.
               </FeatureItem>
               <FeatureItem title="Facturación">
                 Suscripción o recargas por créditos; el pago se realiza por Wompi cuando estás autenticado.
@@ -508,23 +657,21 @@ export default function LandingPage({
           </div>
         </section>
 
-        <section className="lp-section" id="workspace">
+        <section className="lp-section lp-section--alt" id="workspace">
           <div className="lp-wrap">
             <SectionHeader
-              kicker="Navegación"
-              title="Workspace: tres entradas"
-              subtitle="Un mismo shell: Mi Espacio IB, Evaluar, Asistente IA y Configuración."
+              kicker="Workspace"
+              title="Tres entradas, un mismo shell"
+              subtitle="Mi Espacio IB, Evaluar, Asistente IA y Configuración conviven en una sola aplicación."
             />
             <div className="lp-scroll">
               <table className="lp-table">
-                <caption className="lp-sr">
-                  Comparación Mi Espacio IB, Evaluar y Asistente IA
-                </caption>
+                <caption className="lp-sr">Comparación entre Mi Espacio IB, Evaluar y Asistente IA</caption>
                 <thead>
                   <tr>
                     <th scope="col">Sección</th>
                     <th scope="col">Rol</th>
-                    <th scope="col">En la UI</th>
+                    <th scope="col">En la interfaz</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -537,14 +684,14 @@ export default function LandingPage({
                     <th scope="row">Evaluar</th>
                     <td>Centro de trabajo de corrección.</td>
                     <td>
-                      Flujo rúbrica → documento → evaluador, BatchProcessor, Chat principal, ChatBubble, panel de
-                      resumen.
+                      Flujo rúbrica → documento → evaluador, procesamiento por lotes, chat principal, burbuja de chat y
+                      panel de resumen.
                     </td>
                   </tr>
                   <tr>
                     <th scope="row">Asistente IA</th>
                     <td>Consultas y planeación.</td>
-                    <td>Chat amplio; el ChatBubble del evaluador no se muestra aquí.</td>
+                    <td>Chat amplio; la burbuja del evaluador no se muestra en esta vista.</td>
                   </tr>
                 </tbody>
               </table>
@@ -552,49 +699,64 @@ export default function LandingPage({
           </div>
         </section>
 
-        <section className="lp-section lp-section--alt" id="pricing">
+        <DemoVideoSection />
+
+        <section className="lp-section" id="pricing">
           <div className="lp-wrap">
             <SectionHeader
               kicker="Precios"
               title="Planes y créditos"
-              subtitle="Planes mensuales y recargas. Para pagar necesitas sesión iniciada."
+              subtitle="Planes mensuales y recargas. Para pagar necesitas haber iniciado sesión."
             />
             <div className="lp-prices">
-              <article className="lp-card lp-reveal" data-reveal>
-                <h3 className="lp-card__h">Plan Estándar (Profe Pionero) 🚀</h3>
+              <article className="lp-card lp-reveal" data-reveal aria-labelledby="plan-estandar">
+                <h3 id="plan-estandar" className="lp-card__h">
+                  Plan Estándar (Profe Pionero) 🚀
+                </h3>
                 <p className="lp-card__price">$40.000 COP / mes</p>
                 <ul className="lp-list">
-                  <li><strong>Créditos incluidos:</strong> 500 Créditos IA</li>
+                  <li>
+                    <strong>Créditos incluidos:</strong> 500 créditos IA
+                  </li>
                   <li>
                     <strong>¿Para qué te alcanza?</strong> Área Humanidades: hasta 100 exámenes de texto (PDF/Word). Área
                     Ciencias/Matemáticas: hasta 50 exámenes con gráficas, fórmulas o a mano (o una combinación).
                   </li>
-                  <li><strong>Incluye:</strong> chat interactivo con los documentos y rúbricas personalizadas</li>
+                  <li>
+                    <strong>Incluye:</strong> chat interactivo con los documentos y rúbricas personalizadas
+                  </li>
                 </ul>
                 <PrimaryButton
                   onClick={onSubscribe}
                   disabled={subscribeState?.status === 'loading'}
-                  ariaLabel="Planes y créditos (checkout)"
+                  ariaLabel="Abrir planes y créditos (checkout)"
                 >
                   {subscribeState?.status === 'loading' ? 'Generando…' : subscribeLabel}
                 </PrimaryButton>
                 <p className="lp-micro">
-                  {isAuthenticated ? 'Listo para continuar al checkout.' : 'Requiere login o registro.'}
+                  {isAuthenticated ? 'Listo para continuar al checkout.' : 'Requiere iniciar sesión o registrarse.'}
                 </p>
               </article>
-              <article className="lp-card lp-card--accent lp-reveal" data-reveal>
-                <h3 className="lp-card__h">Plan Institucional (Colegios - Hasta 30 Profesores) 🏫</h3>
-                <p className="lp-card__price">$2.000.000 COP / mes (aprox)</p>
+              <article className="lp-card lp-card--accent lp-reveal" data-reveal aria-labelledby="plan-institucional">
+                <h3 id="plan-institucional" className="lp-card__h">
+                  Plan Institucional (Colegios — hasta 30 profesores) 🏫
+                </h3>
+                <p className="lp-card__price">$2.000.000 COP / mes (aprox.)</p>
                 <ul className="lp-list">
-                  <li><strong>Créditos incluidos:</strong> Bolsa compartida de 20.000 Créditos IA</li>
                   <li>
-                    <strong>¿Para qué le alcanza al colegio?</strong> Humanidades (15 profes): ~1.500 exámenes de texto/mes.
-                    Ciencias/Matemáticas (15 profes): ~1.200 exámenes a mano con fórmulas/gráficas.
+                    <strong>Créditos incluidos:</strong> bolsa compartida de 20.000 créditos IA
+                  </li>
+                  <li>
+                    <strong>¿Para qué le alcanza al colegio?</strong> Humanidades (15 profes): ~1.500 exámenes de texto al
+                    mes. Ciencias/Matemáticas (15 profes): ~1.200 exámenes a mano con fórmulas o gráficas.
                   </li>
                 </ul>
+                <p className="lp-micro">Contacto comercial vía WhatsApp para ajustar cupos y facturación.</p>
               </article>
-              <article className="lp-card lp-reveal" data-reveal>
-                <h3 className="lp-card__h">Pago por Uso (Pay-As-You-Go) 🔋</h3>
+              <article className="lp-card lp-reveal" data-reveal aria-labelledby="plan-payg">
+                <h3 id="plan-payg" className="lp-card__h">
+                  Pago por uso (pay-as-you-go) 🔋
+                </h3>
                 <p className="lp-card__price">Recargas desde $20.000 COP</p>
                 <ul className="lp-list">
                   <li>Sin mensualidad. Recargas desde $20.000 COP</li>
@@ -605,7 +767,7 @@ export default function LandingPage({
                 <PrimaryButton
                   onClick={onSubscribe}
                   disabled={subscribeState?.status === 'loading'}
-                  ariaLabel="Recargar créditos"
+                  ariaLabel="Recargar créditos (checkout)"
                 >
                   {subscribeState?.status === 'loading' ? 'Generando…' : subscribeLabel}
                 </PrimaryButton>
@@ -614,9 +776,13 @@ export default function LandingPage({
           </div>
         </section>
 
-        <section className="lp-section" id="faq">
+        <section className="lp-section lp-section--alt" id="faq">
           <div className="lp-wrap lp-wrap--narrow">
-            <SectionHeader kicker="Ayuda" title="Preguntas frecuentes" subtitle="Respuestas breves y alineadas al producto actual." />
+            <SectionHeader
+              kicker="Ayuda"
+              title="Preguntas frecuentes"
+              subtitle="Respuestas breves y alineadas al producto actual."
+            />
             <MiniFAQ items={faq} />
           </div>
         </section>
@@ -639,7 +805,7 @@ export default function LandingPage({
               · © {new Date().getFullYear()}
             </p>
           </div>
-          <div className="lp-foot__links">
+          <nav className="lp-foot__links" aria-label="Enlaces pie de página">
             <TextLink onClick={onGoLogin}>Entrar</TextLink>
             <TextLink onClick={onGoRegister}>Registro</TextLink>
             <a className="lp-textlink" href="#pricing">
@@ -648,7 +814,7 @@ export default function LandingPage({
             <a className="lp-textlink" href="#faq">
               FAQ
             </a>
-          </div>
+          </nav>
         </div>
       </footer>
 
@@ -657,7 +823,7 @@ export default function LandingPage({
         href={WHATSAPP_URL}
         target="_blank"
         rel="noreferrer"
-        aria-label="Abrir WhatsApp"
+        aria-label="Contactar por WhatsApp (se abre en una pestaña nueva)"
       >
         WhatsApp
       </a>

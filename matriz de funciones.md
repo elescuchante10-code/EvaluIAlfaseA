@@ -55,41 +55,8 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
     - IA: Groq implementado en `backend/app/routers/evaluate.py` y `backend/app/services/document_multimodal.py`, leyendo `GROQ_API_KEY`.
     - Alertas para producción (pendiente): `SECRET_KEY` hardcoded (`"1234"`), `ADMIN_BOOTSTRAP_PASSWORD` hardcoded, y revisar semántica de `WOMPI_EVENT_SECRET`.
 
-- [ ] **[Dev/Producto] Mejorar y rediseñar la Landing Page (solo UI)**
-  - **Alcance**: cambios únicamente en componentes/estilos/routing de la landing (frontend).
-  - **No tocar**: lógica de negocio (“motor”), llamadas a API, autenticación, flujos internos de evaluación, ni endpoints backend.
-  - **Referencia visual (modelo)**: Hero tipo “Astra” con **captura del dashboard** dentro de un frame con glow/borde animado.
-    - **Repo referencia**: `Shreyas-29/astra`
-    - **Ubicación en Astra**: `src/app/(marketing)/page.tsx` (usa `Image src="/assets/dashboard.svg"`).
-  - **Criterios de aceptación**:
-    - La landing queda con diseño moderno (responsive, accesible, copy claro, CTA visibles).
-    - No se rompen rutas existentes ni vistas internas.
-    - El login/flujo principal de la app sigue funcionando igual.
-    - No se modifica el backend.
-  - **Evidencia**: capturas “antes/después” + verificación rápida (abrir app, login, cargar 1 flujo clave).
-- [ ] **[Dev] Construir nueva landing (síntesis) sin tocar motor/IA/backend**
-  - **Objetivo**: reemplazar la landing actual por una versión final basada en lo mejor de referencias, manteniendo intacta la app interna.
-  - **Referencias (solo inspiración / patrones UI)**:
-    - `Shreyas-29/astra` (Hero + grid + glow + screenshot): `src/app/(marketing)/page.tsx` + `public/assets/dashboard.svg`
-    - `Blazity/next-saas-starter` (marketing SaaS / secciones): `README.md` + estructura de landing
-  - **Archivos permitidos (por defecto)**:
-    - `frontend/src/components/LandingPage.js`
-    - `frontend/src/components/LandingPage.css`
-    - `frontend/public/assets/*` (capturas/ilustraciones)
-    - (solo si es estrictamente necesario para wiring de la landing) `frontend/src/App.js` / `frontend/src/index.js` — **sin** cambiar lógica de evaluación/IA
-  - **Prohibido**:
-    - `backend/**`
-    - cambios en `frontend/src/services/**`, hooks de evaluación, componentes del editor, prompts, integraciones LLM, endpoints, auth real (más allá de enlaces/CTA existentes)
-    - agregar dependencias nuevas salvo justificación explícita y aprobación (default: **no**)
-  - **Entregables**:
-    - Hero con captura real del dashboard en `public/assets/dashboard-screenshot.png` (o `.webp`) + `alt` descriptivo
-    - Secciones claras (propuesta de valor, cómo funciona, features, pricing/CTA, FAQ) con copy en español alineado a EvaluAI
-    - Accesibilidad (contraste, foco, `aria-*`, `prefers-reduced-motion`)
-    - Responsive (mobile-first)
-  - **Verificación obligatoria**:
-    - `npm run build` en `frontend/` OK
-    - Smoke manual: landing carga, CTAs actuales siguen llamando a los mismos handlers (`onGoLogin`, `onGoRegister`, `onSubscribe`, etc.)
-    - Login + 1 flujo interno mínimo sin regresiones
+- ✅ **[Dev/Producto] Landing definitiva (solo UI) — 2026-04-26**
+  - **Qué quedó listo**: hero con captura raster del workspace en `public/assets/dashboard-screenshot.webp` + `.png` (generados desde maqueta de alta fidelidad), `<picture>` + `alt` largo en español, secciones Valor / Cómo funciona / Funciones / Workspace / vídeo demo opcional / Precios / FAQ, foco y `prefers-reduced-motion` reforzados; `npm run build` en `frontend/` OK; mismos callbacks `onGoLogin`, `onGoRegister`, `onSubscribe` desde la landing (`App.js` sin cambios de negocio).
 
 ---
 

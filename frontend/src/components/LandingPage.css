@@ -487,14 +487,32 @@
   }
 }
 
+.lp-heroPicture {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin: 0;
+  line-height: 0;
+}
+
 .lp-heroShot__img {
   display: block;
   width: 100%;
+  max-width: 100%;
   height: auto;
   vertical-align: middle;
   background: #0c0c0e;
   position: relative;
   z-index: 1;
+}
+
+.lp-heroShot__caption {
+  margin: 12px auto 0;
+  max-width: 52rem;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--faint);
 }
 
 /* Hero video (marco Astra-like, sin copy didáctico) */
@@ -606,6 +624,11 @@ video .lp-videoFallback {
   border-block: 1px solid var(--line);
 }
 
+.lp-section--tight {
+  padding-top: clamp(40px, 6vw, 72px);
+  padding-bottom: clamp(40px, 6vw, 72px);
+}
+
 .lp-secHead {
   margin-bottom: clamp(28px, 4vw, 40px);
   max-width: 36rem;
@@ -629,6 +652,36 @@ video .lp-videoFallback {
   color: var(--muted);
   font-size: 15px;
   line-height: 1.6;
+}
+
+/* Valor (3 pilares) */
+.lp-valueGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lp-valueCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px clamp(18px, 2.5vw, 24px);
+  background: rgba(0, 0, 0, 0.22);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.lp-valueCard:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.lp-valueCard__t {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .lp-h3 {
@@ -869,6 +922,16 @@ video .lp-videoFallback {
   list-style: none;
   color: var(--text);
 }
+
+.lp-faq__q:focus {
+  outline: none;
+}
+
+.lp-faq__q:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
 .lp-faq__q::-webkit-details-marker {
   display: none;
 }
@@ -911,6 +974,9 @@ video .lp-videoFallback {
 /* Responsive */
 @media (max-width: 900px) {
   .lp-grid3 {
+    grid-template-columns: 1fr;
+  }
+  .lp-valueGrid {
     grid-template-columns: 1fr;
   }
   .lp-prices {
@@ -957,7 +1023,8 @@ video .lp-videoFallback {
     mask-image: none !important;
   }
   .lp-card:hover,
-  .lp-faq__item:hover {
+  .lp-faq__item:hover,
+  .lp-valueCard:hover {
     transform: none;
   }
   .lp-whatsappFab {
