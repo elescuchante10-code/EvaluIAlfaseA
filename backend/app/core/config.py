@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./evaluai.db"
     # Para PostgreSQL: "postgresql://user:password@localhost/evaluai"
     
-    # Bootstrap admin (opcional): crea un usuario admin si el email no existe.
-    ADMIN_BOOTSTRAP_EMAIL: str = "julio@gmail.com"
+    # Bootstrap admin (opcional): crea o promueve a admin si coincide el email (README / init_db).
+    ADMIN_BOOTSTRAP_EMAIL: str = "juliolopez4p@gmail.com"
     ADMIN_BOOTSTRAP_PASSWORD: str = "password123"
 
     # Wompi / billing
