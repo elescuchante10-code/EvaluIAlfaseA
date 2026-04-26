@@ -5,10 +5,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
-# from app.services.auth import get_current_active_user
+from app.services.auth import get_current_active_user
 from app.models.models import Document
 from app.services.document_multimodal import (
     cache_document_processing,
@@ -18,17 +20,18 @@ from app.services.document_multimodal import (
 from app.services.document_router import detect_document_type
 from app.services.document_intelligence import build_document_intelligence_profile
 from app.services.teacher_context_pipeline import (
-    TEACHER_CONTEXT_ROOT,
     build_manifest_payload,
+    build_teacher_context_pack_from_documents,
     regenerate_teacher_context_artifacts,
+    resolve_teacher_markdown_abs_path,
     write_teacher_markdown_file,
 )
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
-def _teacher_markdown_api_path(document_id: int, markdown_status: str, relpath: Optional[str]) -> Optional[str]:
-    if markdown_status == "ready" and relpath:
+def _teacher_markdown_api_path(document_id: int, markdown_status: str) -> Optional[str]:
+    if markdown_status == "ready":
         return f"/api/documents/{document_id}/teacher-markdown"
     return None
 
@@ -38,7 +41,7 @@ def _markdown_public_fields(doc: Document) -> dict:
     rel = getattr(doc, "context_markdown_relpath", None)
     return {
         "markdown_status": st,
-        "markdown_path": _teacher_markdown_api_path(doc.id, st, rel),
+        "markdown_path": _teacher_markdown_api_path(doc.id, st),
         "markdown_relpath": rel,
     }
 
@@ -62,7 +65,7 @@ def extract_text_from_txt(file_content: bytes):
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_active_user)
+    current_user=Depends(get_current_active_user),
 ):
     """
     Sube y procesa un documento (.docx, .pdf, .txt).
@@ -77,13 +80,41 @@ async def upload_document(
             detail="Solo se permiten archivos .docx, .pdf o .txt"
         )
     
-    # Leer contenido del archivo
+    settings = get_settings()
+
+    # Leer contenido del archivo (UploadFile no siempre expone size confiable en todos los servidores)
     content = await file.read()
+    file_size_bytes = int(len(content or b"") or 0)
+
+    if file_size_bytes > int(settings.MAX_UPLOAD_FILE_BYTES):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "file_too_large", "message": "El archivo supera el límite de 20 MB."},
+        )
     
-    if len(content) == 0:
+    if file_size_bytes == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El archivo está vacío"
+        )
+
+    # Cupo total por usuario (suma de file_size_bytes)
+    used = (
+        db.query(func.coalesce(func.sum(Document.file_size_bytes), 0))
+        .filter(Document.user_id == int(current_user.id))
+        .scalar()
+    )
+    used = int(used or 0)
+    max_bytes = int(settings.MAX_USER_STORAGE_BYTES)
+    remaining = max_bytes - used
+    if used + file_size_bytes > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "storage_quota_exceeded",
+                "message": f"Has excedido tu cupo de 100 MB. Te quedan {max(0, remaining) // (1024 * 1024)} MB disponibles.",
+                "remaining_bytes": max(0, remaining),
+            },
         )
     
     # Extraer texto según el tipo de archivo
@@ -124,16 +155,19 @@ async def upload_document(
 
     # Guardar en base de datos
     document = Document(
-        user_id=1,  # Asignar un ID de usuario fijo para pruebas
+        user_id=int(current_user.id),
         filename=file.filename,
         original_text="\n\n".join(paragraphs),
+        file_size_bytes=file_size_bytes,
         status="pending"
     )
     db.add(document)
     db.commit()
     db.refresh(document)
 
-    md_status, md_rel = write_teacher_markdown_file(document.id, file.filename, paragraphs)
+    md_status, md_rel = write_teacher_markdown_file(
+        document.id, file.filename, paragraphs, owner_user_id=int(current_user.id)
+    )
     document.context_markdown_status = md_status
     document.context_markdown_relpath = md_rel
     db.add(document)
@@ -141,7 +175,7 @@ async def upload_document(
     db.refresh(document)
 
     cache_document_processing(document.id, processing)
-    regenerate_teacher_context_artifacts(db)
+    regenerate_teacher_context_artifacts(db, triggering_user_id=int(current_user.id))
 
     md = _markdown_public_fields(document)
     return {
@@ -161,33 +195,67 @@ async def upload_document(
 
 
 @router.get("/teacher-context/manifest")
-async def get_teacher_context_manifest(db: Session = Depends(get_db)):
-    """Manifiesto JSON legible (auditable) del registro Markdown contextual por documento."""
-    docs = db.query(Document).order_by(Document.id.asc()).all()
+async def get_teacher_context_manifest(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """
+    Manifiesto JSON del Markdown contextual solo para documentos del usuario autenticado.
+
+    Compatibilidad: antes el endpoint podía exponer todos los documentos del servidor; ahora
+    el listado está acotado por seguridad multiusuario (cambio intencional).
+    """
+    docs = (
+        db.query(Document)
+        .filter(Document.user_id == int(current_user.id))
+        .order_by(Document.id.asc())
+        .all()
+    )
     return build_manifest_payload(docs)
+
+
+@router.get("/teacher-context/pack")
+async def get_teacher_context_pack(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """
+    Pack JSON `teacher_context_pack` solo con documentos Markdown `ready` del usuario
+    (fallback cross-device / cliente sin índice local). Sin LLM ni créditos.
+    """
+    docs = (
+        db.query(Document)
+        .filter(Document.user_id == int(current_user.id))
+        .order_by(Document.id.asc())
+        .all()
+    )
+    return build_teacher_context_pack_from_documents(docs)
 
 
 @router.get("/{document_id}/teacher-markdown")
 async def download_teacher_markdown(
     document_id: int,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Sirve el Markdown mínimo derivado del texto extraído (pipeline Karpathy, sin embeddings)."""
-    document = db.query(Document).filter(Document.id == document_id).first()
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == int(current_user.id),
+    ).first()
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento no encontrado",
         )
     st = getattr(document, "context_markdown_status", None) or "pending"
-    rel = getattr(document, "context_markdown_relpath", None)
-    if st != "ready" or not rel:
+    if st != "ready":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Markdown contextual no disponible para este documento",
         )
-    path = TEACHER_CONTEXT_ROOT.joinpath(*rel.split("/"))
-    if not path.is_file():
+    path = resolve_teacher_markdown_abs_path(document)
+    if path is None or not path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Archivo Markdown no encontrado en disco",
@@ -203,12 +271,12 @@ async def download_teacher_markdown(
 async def get_document(
     document_id: int,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_active_user)
+    current_user=Depends(get_current_active_user),
 ):
     """Obtiene un documento por su ID."""
     document = db.query(Document).filter(
-        Document.id == document_id
-        # Document.user_id == current_user.id  # Comentar esta línea si es necesario
+        Document.id == document_id,
+        Document.user_id == int(current_user.id),
     ).first()
     
     if not document:
@@ -248,13 +316,13 @@ async def get_document(
 @router.get("/")
 async def list_documents(
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_active_user),
+    current_user=Depends(get_current_active_user),
     limit: int = 50,
     offset: int = 0
 ):
     """Lista los documentos del usuario."""
     documents = db.query(Document).filter(
-        # Document.user_id == current_user.id  # Comentar esta línea si es necesario
+        Document.user_id == int(current_user.id)
     ).order_by(Document.created_at.desc()).offset(offset).limit(limit).all()
     
     return {
@@ -278,12 +346,12 @@ async def list_documents(
 async def delete_document(
     document_id: int,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_active_user)
+    current_user=Depends(get_current_active_user),
 ):
     """Elimina un documento."""
     document = db.query(Document).filter(
-        Document.id == document_id
-        # Document.user_id == current_user.id  # Comentar esta línea si es necesario
+        Document.id == document_id,
+        Document.user_id == int(current_user.id),
     ).first()
     
     if not document:
@@ -294,7 +362,7 @@ async def delete_document(
     
     db.delete(document)
     db.commit()
-    regenerate_teacher_context_artifacts(db)
+    regenerate_teacher_context_artifacts(db, triggering_user_id=int(current_user.id))
 
     return {
         "success": True,

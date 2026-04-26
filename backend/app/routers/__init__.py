@@ -1,2 +1,2 @@
 # Routers module
-from app.routers import auth, documents, rubrics, evaluate, wompi, admin
+from app.routers import auth, documents, rubrics, evaluate, wompi, admin, storage

@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.schema_patch import ensure_document_teacher_context_columns
 from app.services.auth import ensure_admin_bootstrap
-from app.routers import auth, documents, rubrics, evaluate, wompi, admin
+from app.routers import auth, documents, rubrics, evaluate, wompi, admin, storage
 
 settings = get_settings()
 
@@ -98,6 +98,7 @@ app.include_router(rubrics.router)
 app.include_router(evaluate.router)
 app.include_router(wompi.router)
 app.include_router(admin.router)
+app.include_router(storage.router)
 
 
 # ============================================

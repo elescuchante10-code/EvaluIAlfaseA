@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./evaluai.db"
     # Para PostgreSQL: "postgresql://user:password@localhost/evaluai"
     
-    # Bootstrap admin (opcional): crea un usuario admin si el email no existe.
-    ADMIN_BOOTSTRAP_EMAIL: str = "julio@gmail.com"
+    # Bootstrap admin (opcional): crea o promueve a admin si coincide el email (README / init_db).
+    ADMIN_BOOTSTRAP_EMAIL: str = "juliolopez4p@gmail.com"
     ADMIN_BOOTSTRAP_PASSWORD: str = "password123"
 
     # Wompi / billing
@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "https://evaluador-ib.vercel.app"
     # Comma-separated list, e.g. "https://app.vercel.app,http://localhost:3000"
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3005,http://127.0.0.1:3005,https://evaluador-ib.vercel.app"
+
+    # Storage quota (wiki docente / teacher context)
+    MAX_UPLOAD_FILE_BYTES: int = 20 * 1024 * 1024
+    MAX_USER_STORAGE_BYTES: int = 100 * 1024 * 1024
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

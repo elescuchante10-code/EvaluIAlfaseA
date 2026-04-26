@@ -255,7 +255,9 @@ class AdminCreateUserRequest(BaseModel):
 
 
 class AdminTopUpRequest(BaseModel):
-    credits_delta: int = Field(..., gt=0)
+    # Permite ajustes positivos (recarga) o negativos (corrección/reverso).
+    # Se valida en backend que el saldo final no quede en negativo.
+    credits_delta: int = Field(..., ne=0)
     reason: str = Field(..., min_length=2, max_length=240)
     request_id: Optional[str] = None
 

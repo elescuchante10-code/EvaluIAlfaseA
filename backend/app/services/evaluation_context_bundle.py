@@ -101,10 +101,19 @@ def _filter_pack_exclude_self(pack: Dict[str, Any], document_id: int) -> Dict[st
     return out
 
 
-def _build_server_teacher_pack(db: Session, exclude_document_id: int) -> Optional[Dict[str, Any]]:
+def _build_server_teacher_pack(
+    db: Session,
+    exclude_document_id: int,
+    owner_user_id: int,
+) -> Optional[Dict[str, Any]]:
     from app.models.models import Document
 
-    docs = db.query(Document).order_by(Document.id.asc()).all()
+    docs = (
+        db.query(Document)
+        .filter(Document.user_id == int(owner_user_id))
+        .order_by(Document.id.asc())
+        .all()
+    )
     entries: List[Dict[str, Any]] = []
     for d in docs:
         if int(d.id) == int(exclude_document_id):
@@ -133,6 +142,7 @@ def _merge_retrieval_context(
     document_context: Dict[str, Any],
     document_id: int,
     db: Optional[Session],
+    owner_user_id: Optional[int],
 ) -> Tuple[Dict[str, Any], str, Optional[str]]:
     """
     Devuelve (contexto_para_retrieval, fuente_pack, nota_si_falta).
@@ -153,11 +163,20 @@ def _merge_retrieval_context(
                 )
             return ctx, "client", None
 
-    if db is not None:
-        server_pack = _build_server_teacher_pack(db, exclude_document_id=document_id)
+    if db is not None and owner_user_id is not None:
+        server_pack = _build_server_teacher_pack(
+            db, exclude_document_id=document_id, owner_user_id=int(owner_user_id)
+        )
         if server_pack and server_pack.get("documents"):
             ctx["teacher_context_pack"] = server_pack
             return ctx, "server_manifest", None
+
+    if db is not None and owner_user_id is None:
+        return (
+            ctx,
+            "none",
+            "Hay sesión de base de datos pero no user_id del evaluador; pack servidor omitido por política de aislamiento.",
+        )
 
     return ctx, "none", "Sin pack de Mi Espacio IB en la petición ni documentos Markdown listos en servidor para otros ids."
 
@@ -217,6 +236,7 @@ def build_evaluation_context_bundle(
     document_context: Dict[str, Any],
     discipline_profile: Dict[str, Any],
     db: Optional[Session] = None,
+    db_user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Capa auditable; la evaluación formal consume solo un extracto vía `evaluation_prompt_context`.
@@ -232,9 +252,13 @@ def build_evaluation_context_bundle(
 
     rubric_sum = _rubric_active_summary(rubric_markdown)
 
-    ret_ctx, pack_source, pack_note = _merge_retrieval_context(ctx_in, document_id, db)
+    ret_ctx, pack_source, pack_note = _merge_retrieval_context(
+        ctx_in, document_id, db, owner_user_id=db_user_id
+    )
     query = _retrieval_query(paragraphs, rubric_markdown)
-    retrieval_bundle = build_teacher_context_snippets_bundle(query, ret_ctx)
+    retrieval_bundle = build_teacher_context_snippets_bundle(
+        query, ret_ctx, db=db, owner_user_id=db_user_id
+    )
 
     snippets = retrieval_bundle.get("snippets") if isinstance(retrieval_bundle, dict) else []
     has_snippets = isinstance(snippets, list) and len(snippets) > 0

@@ -148,12 +148,12 @@ def add_credits_admin(
     meta: Optional[Dict[str, Any]] = None,
 ) -> CreditLedgerEvent:
     """
-    Suma de créditos (top-up) + ledger atómico (idempotente por request_id).
+    Ajuste de créditos (positivo o negativo) + ledger atómico (idempotente por request_id).
     """
     request_id = ensure_request_id(request_id)
     delta = int(credits_delta or 0)
-    if delta <= 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="credits_delta must be > 0")
+    if delta == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="credits_delta must be non-zero")
 
     existing = db.query(CreditLedgerEvent).filter(CreditLedgerEvent.request_id == request_id).first()
     if existing is not None:
@@ -168,14 +168,24 @@ def add_credits_admin(
 
     before = int(user.credits_balance or 0)
     after = before + delta
+    if after < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "credits_would_be_negative",
+                "message": "No se puede dejar el saldo de créditos en negativo.",
+                "credits_before": before,
+                "credits_delta": delta,
+            },
+        )
     user.credits_balance = after
     payload = dict(meta or {})
     payload["reason"] = str(reason or "").strip()
 
     event = CreditLedgerEvent(
         user_id=user_id,
-        action="Admin_TopUp",
-        surface="admin_topup",
+        action="Admin_CreditAdjust",
+        surface="admin_credit_adjust",
         credits_delta=delta,
         credits_before=before,
         credits_after=after,

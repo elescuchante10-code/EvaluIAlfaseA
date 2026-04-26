@@ -1,4 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+const formatMb = (bytes) => {
+  const n = Number(bytes || 0);
+  const safe = Number.isFinite(n) ? Math.max(0, n) : 0;
+  return (safe / (1024 * 1024)).toFixed(safe >= 100 * 1024 * 1024 ? 0 : 1);
+};
 
 /**
  * Vista mínima de configuración (solo UI, sin endpoints nuevos).
@@ -15,6 +23,49 @@ export default function SettingsView({
   const displayName = user?.full_name || user?.name || '';
 
   const asignaturaActiva = teacherContextPack?.asignatura_activa || null;
+
+  const [quota, setQuota] = useState({ status: 'idle', data: null });
+
+  useEffect(() => {
+    let cancel = false;
+    const run = async () => {
+      const token = localStorage.getItem('token') || '';
+      if (!token) {
+        setQuota({ status: 'idle', data: null });
+        return;
+      }
+      setQuota((p) => ({ ...p, status: 'loading' }));
+      try {
+        const res = await fetch(`${API_URL}/api/storage/quota`, {
+          method: 'GET',
+          mode: 'cors',
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => null);
+        if (cancel) return;
+        if (!res.ok || !data) {
+          setQuota({ status: 'error', data: null });
+          return;
+        }
+        setQuota({ status: 'ready', data });
+      } catch {
+        if (cancel) return;
+        setQuota({ status: 'error', data: null });
+      }
+    };
+    run();
+
+    const onQuotaChanged = () => run();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('evaluai:storage-quota-changed', onQuotaChanged);
+    }
+    return () => {
+      cancel = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('evaluai:storage-quota-changed', onQuotaChanged);
+      }
+    };
+  }, [user?.id]);
 
   return (
     <div
@@ -98,6 +149,40 @@ export default function SettingsView({
           >
             Asignatura activa en índice local:{' '}
             <strong style={{ color: '#dbeafe' }}>{asignaturaActiva || 'Sin seleccionar'}</strong>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: '12px 14px',
+              borderRadius: 10,
+              border: '1px solid rgba(148,163,184,0.18)',
+              background: 'rgba(2,6,23,0.25)',
+              color: 'rgba(226,232,240,0.92)',
+              fontSize: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ fontWeight: 800, color: '#e2e8f0' }}>Almacenamiento wiki</div>
+              <div style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(203,213,225,0.9)' }}>
+                {quota.status === 'ready' && quota.data
+                  ? `${formatMb(quota.data.total_bytes_used)} MB / ${formatMb(quota.data.max_bytes)} MB`
+                  : quota.status === 'loading'
+                    ? 'Cargando…'
+                    : 'No disponible'}
+              </div>
+            </div>
+            {quota.status === 'ready' && quota.data ? (
+              <div style={{ marginTop: 10, height: 8, borderRadius: 999, background: 'rgba(148,163,184,0.16)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(100, (Number(quota.data.total_bytes_used || 0) / Math.max(1, Number(quota.data.max_bytes || 1))) * 100)}%`,
+                    background: 'linear-gradient(90deg, rgba(99,102,241,0.65), rgba(56,189,248,0.55))',
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         </section>
 

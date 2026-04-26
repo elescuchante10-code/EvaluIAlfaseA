@@ -2807,6 +2807,7 @@ async def evaluate_with_footnotes(
             document_context=document_context,
             discipline_profile=discipline_profile,
             db=db,
+            db_user_id=int(current_user.id),
         )
         formal_ctx = build_formal_evaluation_prompt_context(evaluation_context_bundle)
         evaluation_context_bundle["formal_prompt_context_injected"] = bool(formal_ctx)
@@ -3055,6 +3056,7 @@ def _legacy_shadow_context_bundle(
     document_context: Dict[str, Any],
     discipline_profile: Dict[str, Any],
     db: Session,
+    db_user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Misma construcción que /footnotes. Si falla, devuelve un bundle mínimo de error.
@@ -3067,6 +3069,7 @@ def _legacy_shadow_context_bundle(
             document_context=document_context,
             discipline_profile=discipline_profile,
             db=db,
+            db_user_id=db_user_id,
         )
     except Exception as exc:
         logger.warning(
@@ -3119,6 +3122,7 @@ async def evaluate_document(
             document_context=document_context,
             discipline_profile=discipline_profile,
             db=db,
+            db_user_id=int(current_user.id),
         )
         evaluation_context_bundle["formal_prompt_context_injected"] = False
         tw_empty = count_words_in_paragraphs(request.paragraphs or [])
@@ -3160,6 +3164,7 @@ async def evaluate_document(
             document_context=document_context,
             discipline_profile=discipline_profile,
             db=db,
+            db_user_id=int(current_user.id),
         )
         formal_ctx = build_formal_evaluation_prompt_context(evaluation_context_bundle)
         evaluation_context_bundle["formal_prompt_context_injected"] = bool(formal_ctx)
@@ -3668,7 +3673,11 @@ async def chat_agent(
 
     base_context_block = build_chat_context_block(req.contexto)
     context_block, teacher_context_retrieval = merge_chat_context_with_teacher_snippets(
-        base_context_block, req.mensaje, req.contexto
+        base_context_block,
+        req.mensaje,
+        req.contexto,
+        db=db,
+        owner_user_id=int(current_user.id),
     )
     image_payload = normalize_chat_image_payload(req.image)
     chat_superficie = resolve_chat_superficie(req.contexto)
