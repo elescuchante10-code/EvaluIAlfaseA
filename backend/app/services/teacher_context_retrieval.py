@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.services.teacher_context_pipeline import TEACHER_CONTEXT_ROOT
+from app.services.teacher_context_pipeline import resolve_teacher_markdown_abs_path
 from app.services.teacher_context_response_policy import (
     build_teacher_context_snippets_prompt_footer,
     resolve_chat_superficie,
@@ -148,15 +148,18 @@ def _strip_yaml_frontmatter(md: str) -> str:
     return text
 
 
-def _document_owned(db: Session, document_id: int, owner_user_id: int) -> bool:
+def _owned_document_row(db: Session, document_id: int, owner_user_id: int):
     from app.models.models import Document
 
-    row = (
-        db.query(Document.id)
+    return (
+        db.query(Document)
         .filter(Document.id == int(document_id), Document.user_id == int(owner_user_id))
         .first()
     )
-    return row is not None
+
+
+def _document_owned(db: Session, document_id: int, owner_user_id: int) -> bool:
+    return _owned_document_row(db, document_id, owner_user_id) is not None
 
 
 def _read_markdown_body(
@@ -165,15 +168,16 @@ def _read_markdown_body(
     db: Optional[Session],
     owner_user_id: Optional[int],
 ) -> Optional[str]:
-    """Lee Markdown en disco solo si el documento pertenece a owner_user_id (lookup en BD)."""
+    """Lee Markdown en disco solo si el documento pertenece a owner_user_id (lookup en BD + rutas P2/legacy)."""
     if db is None or owner_user_id is None:
         return None
-    if not _document_owned(db, int(document_id), int(owner_user_id)):
+    doc = _owned_document_row(db, int(document_id), int(owner_user_id))
+    if not doc:
         return None
-    path = TEACHER_CONTEXT_ROOT / "md" / f"{document_id}.md"
+    path = resolve_teacher_markdown_abs_path(doc)
+    if path is None or not path.is_file():
+        return None
     try:
-        if not path.is_file():
-            return None
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         logger.warning("teacher_context retrieval: cannot read md doc=%s: %s", document_id, exc)

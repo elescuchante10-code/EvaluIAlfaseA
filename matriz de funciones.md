@@ -299,12 +299,12 @@ Este documento sirve para **diagnosticar** lo que ya existe y **registrar tareas
   - **Qué hicimos**: restaurar `backend/data/teacher_context/teacher_context_manifest.json` al estado versionado cuando el pipeline local lo ensucia; borrar Markdown huérfano no versionado; añadir en `.gitignore` la carpeta `backend/data/teacher_context/md/` para que **nuevos** `.md` generados en local no aparezcan como `??` (los ya trackeados siguen en git).
   - **Para qué sirve**: evitar commits accidentales de datos de prueba / PII y diffs eternos en el manifiesto mientras el almacenamiento definitivo sigue siendo “carpeta bajo repo” en desarrollo.
 
-- ⬜ **[Dev] Namespacing de artefactos en disco (teacher-context)** — **siguiente paso recomendado**
-  - Guardar manifests y Markdown por usuario (carpeta por `user_id`) para evitar colisiones por `document_id` y alinear disco con el aislamiento ya aplicado en API/BD.
+- ✅ **[Dev] P2 — Namespacing de artefactos en disco (teacher-context)** (2026-04-26)
+  - **Qué hicimos**: Markdown nuevo en `data/teacher_context/users/{user_id}/md/{document_id}.md`; manifiesto por usuario en `users/{user_id}/teacher_context_manifest.json`; lectura y `GET …/teacher-markdown` resuelven `context_markdown_relpath` y caen a legacy `md/{id}.md` o namespaced si falta el primero; regeneración ya no escribe un manifiesto global mezclado (no borra legacy en disco).
   - **Infra alineada**: en VPS, persistir volumen para `backend/data/**` (teacher context + cuotas); ver Fase 2 / notas de storage en esta matriz.
 
-- ⬜ **[Dev] Fallback server-pack (cross-device)**
-  - Endpoint autenticado que entregue `teacher_context_pack` por usuario (para cuando el índice local del navegador esté vacío).
+- ✅ **[Dev] P3 — Fallback server-pack (cross-device)** (2026-04-26)
+  - **Qué hicimos**: `GET /api/documents/teacher-context/pack` (autenticado) devuelve `teacher_context_pack` solo con documentos `ready` del usuario, sin LLM ni créditos.
 
 - ⬜ **[Dev] Observabilidad (confianza)**
   - Exponer en respuesta del chat un resumen opcional del retrieval (`documents_read`, `snippets_used`, `note`) para soporte.

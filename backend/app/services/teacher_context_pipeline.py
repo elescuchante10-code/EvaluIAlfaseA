@@ -1,8 +1,9 @@
 """
 Pipeline contextual Karpathy-style (sin embeddings): Markdown mínimo + manifiesto JSON.
 
-- Escribe una vista Markdown derivada de los párrafos ya extraídos en upload.
-- Regenera un manifiesto legible en disco para auditoría y fases futuras de retrieval selectivo.
+- Escribe Markdown bajo `data/teacher_context/users/{user_id}/md/{document_id}.md` (P2).
+- Mantiene lectura compatible con rutas legacy `md/{document_id}.md` en la raíz teacher_context.
+- Manifiesto por usuario: `data/teacher_context/users/{user_id}/teacher_context_manifest.json`.
 """
 from __future__ import annotations
 
@@ -16,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 TEACHER_CONTEXT_ROOT = BACKEND_ROOT / "data" / "teacher_context"
-MD_DIR = TEACHER_CONTEXT_ROOT / "md"
 MANIFEST_FILENAME = "teacher_context_manifest.json"
 
 MANIFEST_SCHEMA_VERSION = "1"
@@ -36,27 +36,63 @@ def paragraphs_to_markdown_body(paragraphs: List[str]) -> str:
     return "\n\n".join(chunks)
 
 
-def md_relative_path(document_id: int) -> str:
+def md_relative_path_legacy(document_id: int) -> str:
+    """Ruta relativa histórica bajo TEACHER_CONTEXT_ROOT (sin tenant)."""
     return f"md/{document_id}.md"
+
+
+def md_relative_path_namespaced(owner_user_id: int, document_id: int) -> str:
+    """Ruta relativa namespaced (P2): `users/{user_id}/md/{document_id}.md`."""
+    return f"users/{int(owner_user_id)}/md/{int(document_id)}.md"
+
+
+def user_teacher_context_dir(owner_user_id: int) -> Path:
+    return TEACHER_CONTEXT_ROOT / "users" / str(int(owner_user_id))
+
+
+def resolve_teacher_markdown_abs_path(doc: Any) -> Optional[Path]:
+    """
+    Resuelve la ruta absoluta del Markdown contextual para un ORM `Document`.
+
+    Orden: `context_markdown_relpath` si el archivo existe → legacy `md/{id}.md` →
+    `users/{user_id}/md/{id}.md`. No borra legacy; solo lee el primer archivo existente.
+    """
+    did = int(getattr(doc, "id", 0) or 0)
+    uid = int(getattr(doc, "user_id", 0) or 0)
+    rel = getattr(doc, "context_markdown_relpath", None)
+    if rel and str(rel).strip():
+        p = TEACHER_CONTEXT_ROOT.joinpath(*str(rel).strip().split("/"))
+        if p.is_file():
+            return p
+    legacy = TEACHER_CONTEXT_ROOT / "md" / f"{did}.md"
+    if legacy.is_file():
+        return legacy
+    namespaced = user_teacher_context_dir(uid) / "md" / f"{did}.md"
+    if namespaced.is_file():
+        return namespaced
+    return None
 
 
 def write_teacher_markdown_file(
     document_id: int,
     filename: str,
     paragraphs: List[str],
+    *,
+    owner_user_id: int,
 ) -> Tuple[str, Optional[str]]:
     """
-    Escribe `data/teacher_context/md/{id}.md`. Devuelve (status, relpath bajo teacher_context o None).
-    status ∈ pending | ready | error  (pending no se usa aquí; reservado API)
+    Escribe Markdown namespaced bajo `users/{owner_user_id}/md/{id}.md`.
+    Devuelve (status, relpath bajo TEACHER_CONTEXT_ROOT o None).
     """
     try:
-        MD_DIR.mkdir(parents=True, exist_ok=True)
-        rel = md_relative_path(document_id)
+        rel = md_relative_path_namespaced(owner_user_id, document_id)
         path = TEACHER_CONTEXT_ROOT.joinpath(*rel.split("/"))
+        path.parent.mkdir(parents=True, exist_ok=True)
         body = paragraphs_to_markdown_body(paragraphs)
         header_lines = [
             "---",
             f"document_id: {document_id}",
+            f"owner_user_id: {int(owner_user_id)}",
             f'source_filename: {json.dumps(filename, ensure_ascii=False)}',
             f"generated_at: {_utc_now_iso()}",
             "kind: teacher_context_markdown_v1",
@@ -106,7 +142,41 @@ def build_manifest_payload(document_models) -> Dict[str, Any]:
     }
 
 
+def build_teacher_context_pack_from_documents(document_models) -> Dict[str, Any]:
+    """JSON `teacher_context_pack` para un conjunto de filas Document (mismo usuario en el caller)."""
+    entries: List[Dict[str, Any]] = []
+    for doc in document_models:
+        did = getattr(doc, "id", None)
+        if did is None:
+            continue
+        st = str(getattr(doc, "context_markdown_status", None) or "pending").strip().lower()
+        if st != "ready":
+            continue
+        rel = getattr(doc, "context_markdown_relpath", None)
+        entries.append(
+            {
+                "document_id": int(did),
+                "filename": str(getattr(doc, "filename", "") or ""),
+                "markdown_status": "ready",
+                "markdown_relpath": rel,
+                "categoria_documental": "",
+            }
+        )
+    entries.sort(key=lambda x: x["document_id"])
+    return {
+        "pack_kind": "teacher_context_pack",
+        "asignatura_activa": "",
+        "documents": entries,
+    }
+
+
 def write_manifest_to_disk(document_models) -> Path:
+    """
+    Escribe el manifiesto global histórico en la raíz teacher_context (legacy).
+
+    Ya no se usa en `regenerate_teacher_context_artifacts` (manifiestos por usuario, P2);
+    se conserva por compatibilidad si algún script externo lo importaba.
+    """
     TEACHER_CONTEXT_ROOT.mkdir(parents=True, exist_ok=True)
     payload = build_manifest_payload(document_models)
     path = TEACHER_CONTEXT_ROOT / MANIFEST_FILENAME
@@ -114,17 +184,37 @@ def write_manifest_to_disk(document_models) -> Path:
     return path
 
 
+def write_user_manifest_to_disk(owner_user_id: int, document_models) -> Path:
+    """Escribe `users/{owner_user_id}/teacher_context_manifest.json`."""
+    udir = user_teacher_context_dir(owner_user_id)
+    udir.mkdir(parents=True, exist_ok=True)
+    payload = build_manifest_payload(document_models)
+    path = udir / MANIFEST_FILENAME
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
 def regenerate_teacher_context_artifacts(db, triggering_user_id: Optional[int] = None) -> None:
     """
-    Regenera el manifiesto en disco a partir del estado actual de la tabla documents.
+    Regenera manifiestos JSON **por usuario** bajo `users/{user_id}/`.
 
-    El archivo agregado en disco puede listar todos los tenants (uso interno/auditoría en FS);
-    las rutas HTTP (`/api/documents/...`) filtran por usuario. `triggering_user_id` se acepta
-    para trazabilidad futura; la regeneración sigue siendo global respecto a la BD para mantener
-    un único manifiesto coherente con las filas existentes.
+    No borra Markdown legacy (`md/*.md`); no elimina el manifiesto global antiguo en disco
+    (puede quedar obsoleto). Si `triggering_user_id` es None, actualiza todos los `user_id`
+    distintos presentes en `documents`.
     """
-    _ = triggering_user_id  # reservado: llamadas desde upload/delete pasan el actor
     from app.models.models import Document  # import local evita ciclos
 
-    docs = db.query(Document).order_by(Document.id.asc()).all()
-    write_manifest_to_disk(docs)
+    if triggering_user_id is not None:
+        user_ids = [int(triggering_user_id)]
+    else:
+        rows = db.query(Document.user_id).distinct().order_by(Document.user_id.asc()).all()
+        user_ids = [int(r[0]) for r in rows if r[0] is not None]
+
+    for uid in user_ids:
+        docs = (
+            db.query(Document)
+            .filter(Document.user_id == uid)
+            .order_by(Document.id.asc())
+            .all()
+        )
+        write_user_manifest_to_disk(uid, docs)

@@ -1,9 +1,25 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from app.services import teacher_context_pipeline as tcp
 from app.services import teacher_context_retrieval as tcr
 
 _DB = MagicMock()
 _OWNER = 1
+
+
+def _patch_fs(monkeypatch, root):
+    monkeypatch.setattr(tcp, "TEACHER_CONTEXT_ROOT", root)
+
+
+def _patch_owned_always(monkeypatch):
+    monkeypatch.setattr(
+        tcr,
+        "_owned_document_row",
+        lambda db, did, uid: SimpleNamespace(
+            id=int(did), user_id=int(uid), context_markdown_relpath=None
+        ),
+    )
 
 
 def _pack(docs):
@@ -11,7 +27,7 @@ def _pack(docs):
 
 
 def test_retrieval_keyword_in_paragraph(monkeypatch, tmp_path):
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: True)
+    _patch_owned_always(monkeypatch)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
     (root / "md" / "7.md").write_text(
@@ -20,7 +36,7 @@ def test_retrieval_keyword_in_paragraph(monkeypatch, tmp_path):
         "La unidad aborda el problema del conocimiento científico y sus límites.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    _patch_fs(monkeypatch, root)
 
     ctx = {
         "teacher_context_pack": _pack(
@@ -48,10 +64,10 @@ def test_retrieval_keyword_in_paragraph(monkeypatch, tmp_path):
 
 
 def test_retrieval_empty_without_ready_markdown(monkeypatch, tmp_path):
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: True)
+    _patch_owned_always(monkeypatch)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    _patch_fs(monkeypatch, root)
 
     ctx = {
         "teacher_context_pack": _pack(
@@ -73,7 +89,7 @@ def test_retrieval_empty_without_ready_markdown(monkeypatch, tmp_path):
 
 
 def test_retrieval_filename_intro_when_keyword_only_in_name(monkeypatch, tmp_path):
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: True)
+    _patch_owned_always(monkeypatch)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
     (root / "md" / "3.md").write_text(
@@ -82,7 +98,7 @@ def test_retrieval_filename_intro_when_keyword_only_in_name(monkeypatch, tmp_pat
         "Segundo bloque sin palabras de la consulta.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    _patch_fs(monkeypatch, root)
 
     ctx = {
         "teacher_context_pack": _pack(
@@ -104,14 +120,14 @@ def test_retrieval_filename_intro_when_keyword_only_in_name(monkeypatch, tmp_pat
 
 
 def test_merge_returns_bundle(monkeypatch, tmp_path):
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: True)
+    _patch_owned_always(monkeypatch)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
     (root / "md" / "1.md").write_text(
         "---\n---\n\nContenido sobre autonomía y ética del cuidado.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    _patch_fs(monkeypatch, root)
 
     ctx = {
         "teacher_context_pack": _pack(

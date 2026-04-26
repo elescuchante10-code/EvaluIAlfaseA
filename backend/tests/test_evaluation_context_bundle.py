@@ -1,6 +1,8 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.services import evaluation_context_bundle as ecb
+from app.services import teacher_context_pipeline as tcp
 from app.services import teacher_context_retrieval as tcr
 
 
@@ -45,7 +47,7 @@ def test_shadow_bundle_excludes_evaluated_doc_from_client_pack(monkeypatch, tmp_
         "---\n---\n\nLa ética del cuidado y la autonomía del paciente.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    monkeypatch.setattr(tcp, "TEACHER_CONTEXT_ROOT", root)
 
     ctx = {
         "teacher_context_pack": {
@@ -75,14 +77,19 @@ def test_shadow_bundle_excludes_evaluated_doc_from_client_pack(monkeypatch, tmp_
 
 
 def test_shadow_bundle_retrieval_from_other_docs(monkeypatch, tmp_path):
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: int(did) == 20 and int(uid) == 1)
+    def _row(db, did, uid):
+        if int(did) == 20 and int(uid) == 1:
+            return SimpleNamespace(id=20, user_id=1, context_markdown_relpath=None)
+        return None
+
+    monkeypatch.setattr(tcr, "_owned_document_row", _row)
     root = tmp_path / "teacher_context"
     (root / "md").mkdir(parents=True)
     (root / "md" / "20.md").write_text(
         "---\n---\n\nEl conocimiento científico y sus límites epistemológicos.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
+    monkeypatch.setattr(tcp, "TEACHER_CONTEXT_ROOT", root)
 
     ctx = {
         "teacher_context_pack": {
@@ -123,8 +130,8 @@ def test_shadow_bundle_no_disk_read_for_foreign_doc_in_pack(monkeypatch, tmp_pat
         "---\n---\n\nContenido secreto de otro usuario.\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(tcr, "TEACHER_CONTEXT_ROOT", root)
-    monkeypatch.setattr(tcr, "_document_owned", lambda db, did, uid: False)
+    monkeypatch.setattr(tcp, "TEACHER_CONTEXT_ROOT", root)
+    monkeypatch.setattr(tcr, "_owned_document_row", lambda db, did, uid: None)
 
     ctx = {
         "teacher_context_pack": {
