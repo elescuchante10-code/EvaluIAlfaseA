@@ -1,6 +1,22 @@
-// Servicios API para conectar con el backend
-// REACT_APP_API_URL se carga de .env o .env.local
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Servicios API para conectar con el backend.
+//
+// En producción, preferimos **same-origin** (API servida detrás del mismo host vía reverse proxy)
+// para evitar CORS y fallos por variables no seteadas. En desarrollo, default a localhost:8000.
+const resolveApiBaseUrl = () => {
+  const fromEnv = (process.env.REACT_APP_API_URL || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, '');
+
+  // CRA inyecta NODE_ENV en build. Si no hay env explícita:
+  if (process.env.NODE_ENV === 'production') return '';
+  return 'http://localhost:8000';
+};
+
+const API_URL = resolveApiBaseUrl();
+
+const withApiBase = (path) => {
+  const p = String(path || '').startsWith('/') ? String(path || '') : `/${path}`;
+  return `${API_URL}${p}`;
+};
 
 // 🎮 MODO DEMO: Cambiar a true para probar sin backend
 const MODO_DEMO = process.env.REACT_APP_DEMO_MODE === 'true' || false;
@@ -31,6 +47,17 @@ const getHeaders = (contentType = 'application/json') => {
   return headers;
 };
 
+// Fetch con timeout para evitar UI “colgada” (login/subida) cuando el API no responde.
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 // ==================== AUTENTICACION ====================
 export const authAPI = {
   login: async (email, password) => {
@@ -57,15 +84,15 @@ export const authAPI = {
 
     // Modo real: conectar con backend FastAPI
     try {
-      const loginUrl = `${API_URL}/api/auth/login/json`;
+      const loginUrl = withApiBase('/api/auth/login/json');
       console.log('🔌 [Login] POST', loginUrl);
       
-      const response = await fetch(loginUrl, {
+      const response = await fetchWithTimeout(loginUrl, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-      });
+      }, 20000);
       
       console.log('📡 [Login] Status:', response.status);
       
@@ -119,16 +146,16 @@ export const authAPI = {
 
     // Modo real: conectar con backend FastAPI
     try {
-      const registerUrl = `${API_URL}/api/auth/register`;
+      const registerUrl = withApiBase('/api/auth/register');
       console.log('🔌 [Register] POST', registerUrl);
       
-      const response = await fetch(registerUrl, {
+      const response = await fetchWithTimeout(registerUrl, {
         method: 'POST',
         mode: 'cors',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, full_name }),
-      });
+      }, 20000);
       
       console.log('📡 [Register] Status:', response.status);
       
@@ -173,11 +200,11 @@ export const authAPI = {
 
   getMe: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetchWithTimeout(withApiBase('/api/auth/me'), {
         method: 'GET',
         mode: 'cors',
         headers: getHeaders(),
-      });
+      }, 15000);
       
       if (response.status === 401) {
         localStorage.removeItem('token');
@@ -208,12 +235,12 @@ export const authAPI = {
 // ==================== CHAT CON AGENTE ====================
 export const agenteAPI = {
   chat: async (mensaje, contexto = {}, historial = [], image = null) => {
-    const response = await fetch(`${API_URL}/api/evaluate/chat`, {
+    const response = await fetchWithTimeout(withApiBase('/api/evaluate/chat'), {
       method: 'POST',
       mode: 'cors',
       headers: getHeaders(),
       body: JSON.stringify({ mensaje, contexto, historial, image }),
-    });
+    }, 60000);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       return {
@@ -276,12 +303,12 @@ export const documentosAPI = {
 
       console.log('📤 Subiendo archivo:', file.name);
       
-      const response = await fetch(`${API_URL}/documentos/subir`, {
+      const response = await fetchWithTimeout(withApiBase('/documentos/subir'), {
         method: 'POST',
         mode: 'cors',
         headers: headers,
         body: formData,
-      });
+      }, 60000);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -301,29 +328,29 @@ export const documentosAPI = {
     }
 
     const params = new URLSearchParams({ asignatura, limit, offset });
-    const response = await fetch(`${API_URL}/documentos?${params}`, {
+    const response = await fetchWithTimeout(withApiBase(`/documentos?${params}`), {
       method: 'GET',
       mode: 'cors',
       headers: getHeaders(),
-    });
+    }, 20000);
     return response.json();
   },
 
   obtener: async (documento_id) => {
-    const response = await fetch(`${API_URL}/documentos/${documento_id}`, {
+    const response = await fetchWithTimeout(withApiBase(`/documentos/${documento_id}`), {
       method: 'GET',
       mode: 'cors',
       headers: getHeaders(),
-    });
+    }, 20000);
     return response.json();
   },
 
   eliminar: async (documento_id) => {
-    const response = await fetch(`${API_URL}/documentos/${documento_id}`, {
+    const response = await fetchWithTimeout(withApiBase(`/documentos/${documento_id}`), {
       method: 'DELETE',
       mode: 'cors',
       headers: getHeaders(),
-    });
+    }, 20000);
     return response.json();
   },
 };
@@ -359,12 +386,12 @@ export const evaluacionesAPI = {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${API_URL}/evaluaciones/procesar`, {
+      const response = await fetchWithTimeout(withApiBase('/evaluaciones/procesar'), {
         method: 'POST',
         mode: 'cors',
         headers: headers,
         body: formData,
-      });
+      }, 90000);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
