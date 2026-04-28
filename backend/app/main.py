@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import time
 
 from app.core.config import get_settings
 from app.core.database import engine, Base, SessionLocal
@@ -16,6 +17,34 @@ from app.services.auth import ensure_admin_bootstrap
 from app.routers import auth, documents, rubrics, evaluate, wompi, admin, storage
 
 settings = get_settings()
+
+def _wait_for_database(max_seconds: int = 45) -> None:
+    """
+    Espera a que el DNS y la conexión a BD estén listos (docker compose / VPS cold start).
+
+    Evita que el backend muera en arranque por fallos transitorios de resolución de host
+    (p. ej. `postgres`) o por Postgres aún inicializando.
+    """
+    from typing import Optional
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    deadline = time.time() + max_seconds
+    last_exc: Optional[Exception] = None
+    while time.time() < deadline:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return
+        except OperationalError as exc:
+            last_exc = exc
+            time.sleep(1.5)
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(1.5)
+    if last_exc:
+        raise last_exc
 
 
 def _run_alembic_upgrade() -> None:
@@ -43,6 +72,7 @@ async def lifespan(app: FastAPI):
     Crea las tablas de la base de datos al iniciar.
     """
     # Startup: tablas base + migraciones Alembic + parches de columnas legacy
+    _wait_for_database(max_seconds=60 if settings.APP_ENV in {"production", "prod"} else 30)
     Base.metadata.create_all(bind=engine)
     _run_alembic_upgrade()
     ensure_document_teacher_context_columns(engine)
