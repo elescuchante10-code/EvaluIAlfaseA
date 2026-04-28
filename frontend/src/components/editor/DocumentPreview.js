@@ -9,7 +9,17 @@ const DEFAULT_DESKTOP_ZOOM = 1.1;
 const PDF_ZOOM_OPTIONS = [0.9, 1, DEFAULT_DESKTOP_ZOOM, 1.25, 1.5];
 const DEFAULT_PAGE_RATIO = 1.414;
 
-pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.mjs`;
+// En builds CRA con `homepage: "./"` el PUBLIC_URL suele ser "." y los paths relativos
+// terminan resolviendo contra /static/js/..., rompiendo la carga del worker.
+// Forzamos ruta absoluta servida desde `public/`.
+const resolvePdfWorkerSrc = () => {
+  const raw = String(process.env.PUBLIC_URL || '').trim();
+  const normalized = raw.replace(/\/+$/, '');
+  if (!normalized || normalized === '.' || normalized === './') return '/pdf.worker.min.mjs';
+  return `${normalized}/pdf.worker.min.mjs`;
+};
+
+pdfjs.GlobalWorkerOptions.workerSrc = resolvePdfWorkerSrc();
 
 function getFileExtension(doc) {
   if (doc?.fileType) return String(doc.fileType).toLowerCase();
