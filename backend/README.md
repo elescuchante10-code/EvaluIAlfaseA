@@ -48,6 +48,8 @@ backend/
 │   ├── routers/        # Endpoints
 │   │   └── auth.py     # Rutas de auth
 │   └── main.py         # App FastAPI + CORS
+├── migrations/         # Alembic (versiones; script_location en alembic.ini)
+├── tests/              # Pytest
 ├── init_db.py          # Script de inicialización
 ├── run.py              # Script para ejecutar
 └── requirements.txt    # Dependencias
@@ -85,6 +87,16 @@ Response:
   }
 }
 ```
+
+## Pruebas automáticas (pytest)
+
+Tras `pip install -r requirements.txt`, desde `backend/`:
+
+```bash
+python -m pytest
+```
+
+La configuración vive en `pytest.ini` (`pythonpath`, asyncio). Las revisiones SQL de Alembic están en `migrations/` (no en una carpeta llamada `alembic/`, para no sombrear el paquete PyPI al correr tests).
 
 ### GET /api/auth/me
 Obtener usuario actual (requiere Bearer token):

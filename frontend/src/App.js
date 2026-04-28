@@ -26,6 +26,9 @@ import {
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+/** Tras checkout Wompi: retorno a /payment-success?reference=… sin tocar el motor de evaluación. */
+const WOMPI_REF_STORAGE_KEY = 'evaluai_wompi_pending_reference';
+
 /** @param {object|undefined|null} u - usuario desde /login o /me */
 const isUserRoleAdmin = (u) => String(u?.role || '').toLowerCase() === 'admin';
 
@@ -44,6 +47,8 @@ function App() {
   // Landing + billing (Fase E)
   const [landingNotice, setLandingNotice] = useState(null);
   const [subscribeState, setSubscribeState] = useState({ status: 'idle', error: null });
+  /** Aviso tras retorno Wompi (solo shell; no afecta evaluador ni rutas /api/evaluate). */
+  const [billingReturnNotice, setBillingReturnNotice] = useState(null);
   
   // Estados para auth
   const [email, setEmail] = useState('');
@@ -257,6 +262,100 @@ function App() {
     }
   }, [hydrateRubric]);
 
+  const applyWompiPollResult = useCallback((result) => {
+    if (result?.ok) {
+      setBillingReturnNotice({
+        variant: 'success',
+        title: 'Pago confirmado',
+        body: 'Tu plan y créditos se sincronizaron. Ya puedes seguir evaluando.',
+      });
+      return;
+    }
+    if (result?.reason === 'timeout') {
+      setBillingReturnNotice({
+        variant: 'info',
+        title: 'Pago en proceso',
+        body:
+          'Aún no vemos la confirmación en el sistema. Espera un momento y recarga la página, o revisa tu correo.',
+      });
+      return;
+    }
+    if (result?.reason === 'terminal') {
+      setBillingReturnNotice({
+        variant: 'error',
+        title: 'Pago no aprobado',
+        body: 'La transacción no se completó. Puedes intentar de nuevo desde Precios.',
+      });
+      return;
+    }
+    if (result?.reason === 'http' && result.message) {
+      setBillingReturnNotice({
+        variant: 'error',
+        title: 'No se pudo consultar el pago',
+        body: result.message,
+      });
+    }
+  }, []);
+
+  const pollWompiReferenceUntilTerminal = useCallback(
+    async (reference, shouldCancel) => {
+      const ref = (reference || '').trim();
+      if (!ref) return { ok: false, reason: 'empty' };
+      const token = localStorage.getItem('token') || '';
+      if (!token) return { ok: false, reason: 'no_token' };
+
+      const terminalFail = new Set(['declined', 'expired', 'failed', 'rejected']);
+      const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (shouldCancel()) return { ok: false, reason: 'cancelled' };
+        try {
+          const res = await fetch(
+            `${API_URL}/api/billing/wompi/payments/${encodeURIComponent(ref)}`,
+            { method: 'GET', headers }
+          );
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            const detail = errBody?.detail;
+            return {
+              ok: false,
+              reason: 'http',
+              message: typeof detail === 'string' ? detail : `Error ${res.status}`,
+            };
+          }
+          const data = await res.json();
+          const st = String(data?.status || '').toLowerCase();
+          if (st === 'approved') {
+            const me = await authAPI.getMe();
+            if (me.success && me.user) setUser(me.user);
+            try {
+              await cargarRubricas();
+            } catch (_) {
+              /* no bloquear facturación */
+            }
+            return { ok: true, status: st };
+          }
+          if (terminalFail.has(st)) {
+            return { ok: false, reason: 'terminal', status: st };
+          }
+        } catch (_) {
+          /* red transitoria */
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      return { ok: false, reason: 'timeout' };
+    },
+    [cargarRubricas]
+  );
+
+  const flushPendingWompiReferenceAfterAuth = useCallback(async () => {
+    const pending = (sessionStorage.getItem(WOMPI_REF_STORAGE_KEY) || '').trim();
+    if (!pending) return;
+    sessionStorage.removeItem(WOMPI_REF_STORAGE_KEY);
+    const result = await pollWompiReferenceUntilTerminal(pending, () => false);
+    if (result.reason !== 'cancelled') applyWompiPollResult(result);
+  }, [applyWompiPollResult, pollWompiReferenceUntilTerminal]);
+
   // Verificar sesión al iniciar
   useEffect(() => {
     const checkAuth = async () => {
@@ -282,6 +381,84 @@ function App() {
     checkAuth();
     cargarAsignaturas();
   }, [cargarRubricas]);
+
+  // Retorno desde Wompi: SPA + polling de estado (no interfiere con /api/evaluate).
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    let cancelled = false;
+    const shouldCancel = () => cancelled;
+
+    const normalizePath = (pathname) => {
+      const p = pathname || '/';
+      if (p.length > 1 && p.endsWith('/')) return p.slice(0, -1);
+      return p;
+    };
+
+    const path = normalizePath(window.location.pathname);
+    const successPath =
+      path === '/payment-success' || path.endsWith('/payment-success');
+    const cancelPath =
+      path === '/payment-cancelled' || path.endsWith('/payment-cancelled');
+    const params = new URLSearchParams(window.location.search || '');
+    const reference = (params.get('reference') || '').trim();
+
+    const cleanToRoot = () => {
+      window.history.replaceState({}, '', '/');
+    };
+
+    const run = async () => {
+      if (cancelPath) {
+        cleanToRoot();
+        if (authAPI.isAuthenticated()) {
+          setCurrentView('dashboard');
+          setBillingReturnNotice({
+            variant: 'info',
+            title: 'Pago no completado',
+            body: 'Saliste del checkout sin pagar. Puedes suscribirte de nuevo cuando quieras.',
+          });
+        } else {
+          setCurrentView('landing');
+          setLandingNotice({
+            title: 'Pago no completado',
+            body: 'Si quieres activar EvaluAI, vuelve a Precios e inicia el pago otra vez.',
+          });
+        }
+        return;
+      }
+
+      if (successPath && reference) {
+        const token = localStorage.getItem('token') || '';
+        if (!token) {
+          sessionStorage.setItem(WOMPI_REF_STORAGE_KEY, reference);
+          cleanToRoot();
+          setCurrentView('login');
+          setError(
+            'Inicia sesión con la misma cuenta para confirmar tu pago y actualizar tus créditos.'
+          );
+          return;
+        }
+        cleanToRoot();
+        const result = await pollWompiReferenceUntilTerminal(reference, shouldCancel);
+        if (!cancelled && result.reason !== 'cancelled') applyWompiPollResult(result);
+        return;
+      }
+
+      if (authAPI.isAuthenticated()) {
+        const pending = (sessionStorage.getItem(WOMPI_REF_STORAGE_KEY) || '').trim();
+        if (pending) {
+          sessionStorage.removeItem(WOMPI_REF_STORAGE_KEY);
+          const result = await pollWompiReferenceUntilTerminal(pending, shouldCancel);
+          if (!cancelled && result.reason !== 'cancelled') applyWompiPollResult(result);
+        }
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyWompiPollResult, pollWompiReferenceUntilTerminal]);
 
   // Guardar rúbrica desde chat
   const guardarRubricaDesdeChat = useCallback(async (
@@ -351,6 +528,7 @@ function App() {
         setUser(u);
         setCurrentView('dashboard');
         cargarRubricas();
+        await flushPendingWompiReferenceAfterAuth();
       } else {
         setError(data.message || 'Error al iniciar sesión');
       }
@@ -373,6 +551,8 @@ function App() {
         if (me.success && me.user) u = me.user;
         setUser(u);
         setCurrentView('dashboard');
+        cargarRubricas();
+        await flushPendingWompiReferenceAfterAuth();
       } else {
         setError(data.message || 'Error al registrar');
       }
@@ -797,6 +977,48 @@ function App() {
 
     return (
       <div style={styles.dashboard.container}>
+        {billingReturnNotice ? (
+          <div
+            role="status"
+            style={{
+              margin: '0 16px 12px',
+              padding: '12px 14px',
+              borderRadius: 10,
+              border: '1px solid rgba(148,163,184,0.35)',
+              background:
+                billingReturnNotice.variant === 'success'
+                  ? 'rgba(16,185,129,0.12)'
+                  : billingReturnNotice.variant === 'error'
+                    ? 'rgba(248,113,113,0.12)'
+                    : 'rgba(59,130,246,0.12)',
+              color: '#e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 12,
+              alignItems: 'flex-start',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{billingReturnNotice.title}</div>
+              <div style={{ fontSize: 14, opacity: 0.95 }}>{billingReturnNotice.body}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBillingReturnNotice(null)}
+              style={{
+                flexShrink: 0,
+                border: 'none',
+                background: 'rgba(15,23,42,0.45)',
+                color: '#e2e8f0',
+                borderRadius: 8,
+                padding: '6px 10px',
+                cursor: 'pointer',
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        ) : null}
         {isMobileShellLayout && isMobileShellNavOpen ? (
           <div
             className="evaluai-shell-nav-backdrop"

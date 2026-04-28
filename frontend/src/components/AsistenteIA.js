@@ -7,11 +7,9 @@
 //  PRINCIPIOS:
 //  - Identidad propia: NO reusa ni deforma `ChatBubble.js`.
 //  - No toca el motor de evaluación (CentralEvaluator).
-//  - Honesto con sus capacidades: reutiliza `agenteAPI.chat` como canal
-//    conversacional real con el agente IA de EvaluAI, sin fingir una
-//    integración con Mi Espacio IB que aún no existe.
-//  - Preparado para recibir `contextoEspacio` en futuras fases (retrieval,
-//    contexto automático, etc.) sin cambios estructurales.
+//  - Usa `agenteAPI.chat` con `teacher_context_pack` / summary cuando el
+//    workspace expone material indexado (retrieval en backend, sin fingir
+//    capacidades que el motor no tenga).
 // ============================================================================
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -815,9 +813,12 @@ const AsistenteIA = ({ asignaturaActiva: asignaturaActivaProp = '', rubricaActiv
                     {' '}
                     Se envía al modelo un <strong>índice auditable</strong> de tu{' '}
                     <em>Mi Espacio IB</em> (asignatura, <code>document_id</code>,
-                    nombre y categoría documental). No hay recuperación profunda de
-                    contenido todavía: si necesitas analizar un PDF, pégalo o
-                    adjunta captura.
+                    nombre y categoría). Cuando el mensaje lo hace razonable, el
+                    backend <strong>recupera fragmentos</strong> del Markdown de
+                    esas guías (coincidencia léxica simple, sin base vectorial) para
+                    anclar la respuesta. Para atender <strong>todo</strong> un PDF
+                    o un pasaje muy extenso, es más fiable resumir o enviar
+                    captura del tramo.
                   </>
                 ) : (
                   <>

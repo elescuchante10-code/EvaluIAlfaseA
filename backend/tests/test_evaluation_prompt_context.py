@@ -33,6 +33,7 @@ def test_formal_prompt_includes_policy_and_caps_snippets():
             "has_tables": True,
         },
         "retrieval_used": True,
+        "retrieval_confidence": "heuristic_keyword_match",
         "teacher_context_snippets": [
             {
                 "filename": "g.md",
@@ -45,12 +46,42 @@ def test_formal_prompt_includes_policy_and_caps_snippets():
         ],
     }
     text = build_formal_evaluation_prompt_context(bundle)
-    assert "POLÍTICA DE USO" in text
-    assert "La rúbrica provista" in text
+    assert "CONTEXTO DE REFERENCIA ACADÉMICA" in text
+    assert "MARCO MULTI-ASIGNATURA" in text
+    assert "no se asume un programa fijo" in text
+    assert "Marco disciplinar y de programa" in text
+    assert "AUTORIDAD DE CONTENIDO" in text
+    assert "evaluation_matrix" in text
     assert "FORMAL / MENOR / RELEVANTE / CRÍTICO" in text
-    assert "Asignatura de trabajo: Física" in text
-    assert "Rol documental: student_submission" in text
-    assert "Perfil del documento" in text
-    assert text.count("Fragmentos de referencia") == 1
-    assert text.count(". (") == MAX_FORMAL_SNIPPETS
-    assert "cuatro" not in text
+    assert "Asignatura: Física" in text
+    assert "Rol del documento evaluado: student_submission" in text
+    assert "Perfil del documento entregado" in text
+    assert "FRAGMENTOS DE REFERENCIA" in text
+    assert text.count("[1]") == 1
+    assert text.count("[4]") == 1
+    assert "cuatro" in text
+    assert len(text) < 50000
+
+
+def test_formal_prompt_includes_rubric_encadre_when_only_rubric_summary():
+    """C3.1: el encuadre mínimo de rúbrica basta para emitir el bloque formal (sin duplicar la rúbrica entera)."""
+    bundle = {
+        "bundle_kind": ecb.BUNDLE_KIND,
+        "rubric_active_summary": {
+            "title": "Rúbrica ensayo NM",
+            "preview": "Criterios de argumentación y uso de fuentes.",
+        },
+        "subject": "",
+        "document_role": None,
+        "document_intelligence_profile": None,
+        "teacher_context_snippets": [],
+    }
+    text = build_formal_evaluation_prompt_context(bundle)
+    assert text
+    assert "Encuadre de rúbrica" in text
+    assert "Rúbrica ensayo NM" in text
+    assert "argumentación" in text
+
+
+def test_max_formal_snippets_constant_matches_reference():
+    assert MAX_FORMAL_SNIPPETS == 12

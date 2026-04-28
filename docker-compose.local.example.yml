@@ -1,0 +1,13 @@
+# Opcional — solo desarrollo en máquina local.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.local.example.yml up --build
+#
+# Expone Postgres en loopback para DBeaver/psql. No uses este archivo en Coolify/producción.
+# No define volúmenes del backend: evita conflicto con backend_data:/app/data del compose principal.
+# Para ver archivos wiki en el host, edita temporalmente docker-compose.yml y sustituye
+#   backend_data:/app/data   por   ./backend/data:/app/data
+# y comenta la entrada backend_data: en la sección volumes (solo en tu copia de trabajo).
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

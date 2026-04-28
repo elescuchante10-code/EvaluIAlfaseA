@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     WOMPI_CHECKOUT_BASE_URL: str = "https://checkout.wompi.co/l"
     WOMPI_PRIVATE_KEY: Optional[str] = None
     WOMPI_PUBLIC_KEY: Optional[str] = None
-    WOMPI_EVENT_SECRET:  str = "https://evaluadorib-production.up.railway.app/api/billing/wompi/webhook"
+    # Debe configurarse en env con el secreto real del panel Wompi (integridad del webhook).
+    WOMPI_EVENT_SECRET: str = ""
     WOMPI_TIMEOUT_SECONDS: int = 20
     WOMPI_SKIP_SIGNATURE_VALIDATION: bool = False
     WOMPI_PAYMENT_SUCCESS_PATH: str = "/payment-success"

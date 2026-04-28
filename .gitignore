@@ -13,6 +13,8 @@ venv/
 env/
 .env
 .env.*
+# Override local de Compose (no versionar)
+docker-compose.local.yml
 # Permitir versionar plantilla de variables (sin secretos reales)
 !.env.example
 # Excepción: solo URL pública del API (sin secretos); Vercel puede sobrescribir vía env del proyecto
@@ -46,6 +48,8 @@ tmp_pdf_review*
 # Teacher-context Karpathy: nuevos Markdown generados en local bajo md/
 # (los .md ya versionados siguen en el índice; esto evita ruido ?? en git status)
 backend/data/teacher_context/md/
+# Teacher-context: datos locales por usuario (no versionar; puede contener material sensible/licenciado)
+backend/data/teacher_context/users/
 
 # Archives / exports
 *.zip

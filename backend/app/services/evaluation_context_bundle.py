@@ -257,7 +257,11 @@ def build_evaluation_context_bundle(
     )
     query = _retrieval_query(paragraphs, rubric_markdown)
     retrieval_bundle = build_teacher_context_snippets_bundle(
-        query, ret_ctx, db=db, owner_user_id=db_user_id
+        query,
+        ret_ctx,
+        db=db,
+        owner_user_id=db_user_id,
+        for_formal_evaluation=True,
     )
 
     snippets = retrieval_bundle.get("snippets") if isinstance(retrieval_bundle, dict) else []
@@ -279,7 +283,10 @@ def build_evaluation_context_bundle(
 
     confidence = "none"
     if retrieval_used:
-        confidence = "heuristic_keyword_match"
+        if retrieval_bundle.get("tfidf_rerank_applied"):
+            confidence = "heuristic_keyword_tfidf"
+        else:
+            confidence = "heuristic_keyword_match"
     elif pack_source != "none":
         confidence = "low_no_match"
 
@@ -291,6 +298,7 @@ def build_evaluation_context_bundle(
         "document_intelligence_profile": profile_trim,
         "rubric_active_summary": rubric_sum,
         "retrieval_used": retrieval_used,
+        "tfidf_rerank_applied": bool(retrieval_bundle.get("tfidf_rerank_applied")),
         "retrieval_query_excerpt": query[:320] + ("…" if len(query) > 320 else ""),
         "teacher_context_snippets": snippets if has_snippets else [],
         "related_document_categories": related_cats,
@@ -298,6 +306,7 @@ def build_evaluation_context_bundle(
             "pack_source": pack_source,
             "query_tokens": retrieval_bundle.get("query_tokens") or [],
             "internal_note": retrieval_bundle.get("note"),
+            "tfidf_rerank_applied": bool(retrieval_bundle.get("tfidf_rerank_applied")),
         },
         "scope_note": scope_note,
         "retrieval_confidence": confidence,

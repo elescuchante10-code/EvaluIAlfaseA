@@ -762,7 +762,7 @@ def run_coverage_backfill_pass(
     visual_context_prompt = build_visual_context_prompt(document_context)
     visual_context_block = f"CONTEXTO VISUAL:\n{visual_context_prompt}\n\n" if visual_context_prompt else ""
     formal_ib_block = (
-        f"CONTEXTO IB COMPLEMENTARIO (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
+        f"CONTEXTO DE REFERENCIA DEL PROFESOR (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
         if formal_evaluation_context_prompt
         else ""
     )
@@ -2323,6 +2323,11 @@ CALIDAD PEDAGÓGICA OBLIGATORIA PARA CADA note_text:
   · FORMAL: forma, citación, redacción superficial o precisiones técnicas menores.
   · No uses CRÍTICO por tono, por extensión del párrafo ni por defectos meramente deseables: la gravedad depende del impacto académico real.
 - Cada comentario debe vincularse explícitamente con el criterio de la rúbrica aplicado o con una dimensión inequívoca de ese criterio.
+- ALINEACIÓN C3 (matriz, anclaje, tono IB):
+  · En `evaluation_matrix.criteria`, el campo "criterion" debe corresponder a un criterio nombrado o inequívocamente deducible de la rúbrica provista; no añadas criterios, porcentajes ni columnas ajenas al encargo.
+  · Tono: respetuoso, claro y apropiado a educación secundaria avanzada / enfoque IB: directo, sin paternalizar ni muletillas vacías.
+  · Cada "snippet" debe contener lenguaje sustantivo tomado del párrafo evaluado (no comentario genérico desligado del texto), salvo un error aislado de tecnicismo o cita puntual.
+
 - Cada comentario debe referirse, según corresponda, a uno de estos focos: concepto, argumento, estructura, evidencia, transición, cita, relación entre autores o coherencia interna.
 - No inventes criterios externos, contenidos no presentes ni exigencias ajenas a la rúbrica.
 - Si el problema se repite en varios párrafos, fusiónalo en una sola observación de alto valor y ancla la nota en el párrafo más representativo.
@@ -2492,7 +2497,7 @@ def evaluate_short_document(
     visual_context_prompt = build_visual_context_prompt(document_context)
     visual_context_block = f"CONTEXTO VISUAL:\n{visual_context_prompt}\n\n" if visual_context_prompt else ""
     formal_ib_block = (
-        f"CONTEXTO IB COMPLEMENTARIO (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
+        f"CONTEXTO DE REFERENCIA DEL PROFESOR (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
         if formal_evaluation_context_prompt
         else ""
     )
@@ -2582,7 +2587,7 @@ def evaluate_long_document(
     visual_context_prompt = build_visual_context_prompt(document_context)
     visual_context_block = f"CONTEXTO VISUAL:\n{visual_context_prompt}\n\n" if visual_context_prompt else ""
     formal_ib_block = (
-        f"CONTEXTO IB COMPLEMENTARIO (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
+        f"CONTEXTO DE REFERENCIA DEL PROFESOR (evaluación formal):\n{formal_evaluation_context_prompt}\n\n"
         if formal_evaluation_context_prompt
         else ""
     )
@@ -3684,6 +3689,11 @@ async def chat_agent(
     mi_espacio_policy = build_chat_mi_espacio_policy_section(chat_superficie)
 
     is_assistant = chat_superficie == "asistente_ia"
+    assistant_brevity = (
+        "MODO ASISTENTE IA: prioriza respuestas breves, densas y accionables; evita preámbulos largos salvo que el usuario pida ampliar o profundizar.\n\n"
+        if is_assistant
+        else ""
+    )
     has_image = bool(image_payload)
     if is_assistant:
         action = "Chat_Assistant_RAG"
@@ -3703,8 +3713,7 @@ CONTEXTO ACTIVO DE LA SESIÓN:
 {context_block if context_block else "No se recibió contexto adicional."}
 
 {mi_espacio_policy}
-
-CAPACIDADES:
+{assistant_brevity}CAPACIDADES:
 1. Crear rúbricas en Markdown estructurado. Cuando el profesor pida "Crea una rúbrica de X", genera la rúbrica COMPLETA en Markdown con criterios, ponderaciones y niveles. Incluye <!--RUBRICA_LISTA_PARA_GUARDAR--> al final.
 2. Evaluar selecciones de texto — cuando el profesor comparte un fragmento seleccionado, auditarlo contra la rúbrica activa.
 3. Responder preguntas pedagógicas sobre evaluación.

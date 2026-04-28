@@ -9,9 +9,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from alembic import command
-from alembic.config import Config
-
 from app.core.config import get_settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.schema_patch import ensure_document_teacher_context_columns
@@ -23,13 +20,18 @@ settings = get_settings()
 
 def _run_alembic_upgrade() -> None:
     """Aplica migraciones Alembic (esquema comercial / roles)."""
+    # Import perezoso: el directorio de scripts del repo se llama `migrations/` (no `alembic/`)
+    # para no sombrear el paquete PyPI al ejecutar `pytest` desde `backend/`.
+    from alembic import command
+    from alembic.config import Config
+
     backend_root = Path(__file__).resolve().parent.parent
     alembic_ini = backend_root / "alembic.ini"
     if not alembic_ini.is_file():
         print("[WARN] alembic.ini no encontrado; se omiten migraciones Alembic")
         return
     cfg = Config(str(alembic_ini))
-    cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    cfg.set_main_option("script_location", str(backend_root / "migrations"))
     cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
     command.upgrade(cfg, "head")
 

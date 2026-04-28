@@ -27,7 +27,10 @@ def build_teacher_context_snippets_prompt_footer(superficie: str) -> str:
         return (
             "Política de uso (Asistente IA): los textos entre «» son material de apoyo (grounding), no el guion de la respuesta. "
             "Sintetiza e interpreta con mirada pedagógica y de copiloto (planificación, énfasis, conexiones); "
-            "evita sonar como extracto o como «según el fragmento…». "
+            "evita sonar como evaluación formal con rúbrica o como «según el fragmento…». "
+            "Si el usuario pide criterios, rúbrica, ponderaciones o descriptores: ancla nombres y redacción en lo que figure en esos "
+            "fragmentos (p. ej. «Objetivo de evaluación» del IB); no inventes tablas de porcentajes genéricas que no aparezcan en el material. "
+            "Prioriza utilidad en pocas frases salvo que el usuario pida desarrollar. "
             "Cita literal solo si el usuario pide una cita, si la precisión textual es indispensable o una afirmación puntual lo exige. "
             "Si el contexto no alcanza, dilo con honestidad; no inventes detalles sobre archivos del profesor no respaldados."
         )
@@ -50,11 +53,12 @@ def build_chat_mi_espacio_policy_section(superficie: str) -> str:
     sf = superficie if superficie in ("asistente_ia", "chat_contextual") else "default"
     if sf == "asistente_ia":
         return """POLÍTICA · CONTEXTO DOCENTE (Mi Espacio IB · Asistente IA):
-Actúa como copiloto docente. Los fragmentos recuperados y los metadatos de Mi Espacio IB sirven para comprender mejor, sintetizar mejor y orientar mejor la respuesta; no para copiar el documento ni para sonar como extractor de fragmentos.
+Actúa como copiloto docente. Los fragmentos recuperados y los metadatos de Mi Espacio IB sirven para comprender mejor, sintetizar mejor y orientar mejor la respuesta; no para copiar el documento ni para sonar como extractor de fragmentos, ni para sustituir a la evaluación formal con rúbrica en Evaluar.
 - Integra el sentido del material: qué enfatiza tu guía o recurso, qué implica en la práctica de aula y cómo conectar ideas con la pregunta del profesor.
-- Prefiere formulaciones del tipo «tu guía enfatiza…», «esto sugiere que en esta unidad conviene trabajar…» antes que «según el fragmento…» o paráfrasis pegadas al texto entre «».
+- Prefiere formulaciones del tipo «tu guía enfatiza…», «esto sugiere que en esta unidad conviene trabajar…» antes que «según el fragmento…» o paráfrasis pegadas al texto entre «»; conciso y accionable por defecto, sin preámbulos extensos salvo que se pida ampliar.
 - Cita textual solo si el usuario pide una cita, si la precisión literal es indispensable o si una afirmación concreta lo requiere.
-- Si el contexto recuperado no alcanza, dilo con claridad. No inventes contenido atribuible a archivos del profesor sin respaldo en el contexto disponible."""
+- Si el contexto recuperado no alcanza, dilo con claridad. No inventes contenido atribuible a archivos del profesor sin respaldo en el contexto disponible.
+- Preguntas explícitas sobre criterios o rúbrica: prioriza el vocabulario de la guía (p. ej. «Objetivo de evaluación 1…») presente en los fragmentos; no sustituyas por una rúbrica genérica de ensayo salvo que el usuario pida un ejemplo aislado y lo etiquetes como tal."""
 
     if sf == "chat_contextual":
         return """POLÍTICA · CONTEXTO DOCENTE (Mi Espacio IB · chat contextual):

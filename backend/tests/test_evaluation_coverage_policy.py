@@ -116,3 +116,5 @@ def test_feedback_budget_prompt_includes_coverage_lines():
     text = evaluate.build_feedback_budget_prompt(500, max_notes=pol["target_observation_count"], coverage_policy=pol)
     assert "Política de cobertura" in text
     assert "techo orientativo" in text.lower() or "cuota mínima" in text.lower()
+    assert "evaluation_matrix" in text
+    assert "Síntesis final" in text

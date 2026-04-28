@@ -269,3 +269,7 @@ def extend_feedback_prompt_lines(
         "El número máximo indicado es un techo orientativo, no una cuota mínima: no inventes observaciones vacías "
         "ni microcomentarios solo para 'llenar'; menos notas de alto valor es preferible a ruido o duplicados."
     )
+    lines.append(
+        "Síntesis final (evaluation_matrix): `general_summary`, `strengths`, `main_weaknesses`, `improvement_plan` y `key_examples` deben ser "
+        "específicos, defendibles con la rúbrica y con el texto evaluado; evita debilidades o fortalezas genéricas de relleno no respaldadas en las notas al pie."
+    )

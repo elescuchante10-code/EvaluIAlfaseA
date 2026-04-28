@@ -1,8 +1,9 @@
 """
 Retrieval selectivo y auditable sobre Markdown de Mi Espacio IB (estilo Karpathy).
 
-Sin embeddings ni vector DB: manifiesto/índice cliente + lectura de .md en disco
-y coincidencia simple por tokens (keywords) en nombre, categoría y cuerpo.
+Sin embeddings ni vector DB: manifiesto/índice cliente + lectura de .md en disco,
+coincidencia por tokens (keywords) y, con 2+ candidatos, re-ranking TF‑IDF
+(scikit-learn + fusión numérica numpy) frente al mensaje de consulta.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from app.services.teacher_context_pipeline import resolve_teacher_markdown_abs_path
+from app.services.teacher_context_tfidf import rerank_scored_snippets
 from app.services.teacher_context_response_policy import (
     build_teacher_context_snippets_prompt_footer,
     resolve_chat_superficie,
@@ -23,10 +25,30 @@ logger = logging.getLogger(__name__)
 
 MAX_SNIPPETS = 4
 MAX_SNIPPET_CHARS = 520
+# Evaluación formal: más material de referencia por documento (sin vector DB).
+FORMAL_EVAL_MAX_SNIPPETS = 12
+FORMAL_EVAL_MAX_SNIPPET_CHARS = 2000
+FORMAL_EVAL_PARAGRAPHS_PER_DOC = 4
 MAX_DOCS_TO_RANK = 14
 MAX_DOCS_TO_READ = 10
 MIN_TOKEN_LEN = 2
-MIN_DOC_BONUS_FOR_INTRO_SNIPPET = 4
+# Párrafo inicial (cuando no hay match léxico) solo si el nombre/categoría refuerza la consulta, o
+# bajo 2+ puntos, o la pregunta sugiere explícitamente “intro/estímulo/apertura” (Fase A).
+MIN_DOC_BONUS_FOR_INTRO_SNIPPET = 2
+
+# Palabras o raíces en el mensaje del usuario (después de _fold) que activan anclar al inicio del doc.
+_INTRO_INTENT_TOKENS = frozenset(
+    {
+        "introduccion",
+        "intro",
+        "estimulo",
+        "comienzo",
+        "apertura",
+        "inicial",
+        "inicio",
+        "primera",
+    }
+)
 
 # Consultas muy cortas o solo puntuación: no forzar lectura de disco.
 MIN_QUERY_CHARS_FOR_RETRIEVAL = 3
@@ -136,6 +158,111 @@ def tokenize_query(message: str) -> List[str]:
             seen.add(t)
             out.append(t)
     return out[:24]
+
+
+def _message_prefers_intro_paragraph(message: str) -> bool:
+    """True si el usuario pide apertura/introducción/estímulo, etc. (sin depender de embeddings)."""
+    if not (message and str(message).strip()):
+        return False
+    folded = _fold(message)
+    for raw in re.findall(r"[a-z0-9]{2,}", folded):
+        if raw in _INTRO_INTENT_TOKENS:
+            return True
+    return False
+
+
+def _expand_scoring_tokens(tokens: Set[str]) -> Set[str]:
+    """Añade pistas léxicas relacionadas (solo puntuación/scoring, no se listan como query_tokens)."""
+    out: Set[str] = set(tokens)
+    for t in tokens:
+        if t == "estimulo":
+            out.update({"introduccion", "apertura", "contexto"})
+        elif t == "tema":
+            out.update({"unidad", "contenido"})
+        elif t == "guia":
+            out.update({"unidad", "plan"})
+    # Guías IB: la pregunta pide "criterios" pero el documento expresa "objetivo(s) de evaluación" / descriptores.
+    if tokens & {
+        "criterio",
+        "criterios",
+        "rubrica",
+        "calificar",
+        "nota",
+        "pondera",
+        "prueba",
+        "investigacion",
+        "investigaciones",
+        "interna",
+        "internas",
+        "evaluacion",
+        "evaluaciones",
+    }:
+        out.update(
+            {
+                "objetivo",
+                "objetivos",
+                "comprension",
+                "sintesis",
+                "aplicacion",
+                "conocimiento",
+                "indagacion",
+                "descriptores",
+                "descriptor",
+            }
+        )
+    return out
+
+
+def _ib_objectives_rubric_weight(paragraph: str) -> int:
+    """
+    Peso hacia secciones que listan criterios IB reales: «Objetivo de evaluación 1/2/…»,
+    frente a tablas solo con duración/porcentaje.
+    """
+    if not paragraph or not str(paragraph).strip():
+        return 0
+    f = _fold(str(paragraph))
+    w = 0
+    w += 12 * len(re.findall(r"objetivo de evaluacion[:\s]+[0-4]\b", f, flags=re.IGNORECASE))
+    if w == 0 and re.search(
+        r"objetivo de evaluacion.{0,3}[0-4]|\bobjetiv.{0,15}de evaluacion", f, flags=re.IGNORECASE
+    ):
+        w = 8
+    if re.search(
+        r"conocimiento y comprension|sintesis y evaluacion|aplicacion y analisis|uso y aplicacion",
+        f,
+        flags=re.IGNORECASE,
+    ):
+        w += 8
+    if re.search(
+        r"puntuacion|descriptor|banda[sd]? de|esquemas? de calificacion",
+        f,
+        flags=re.IGNORECASE,
+    ) and w < 4:
+        w = max(w, 4)
+    return w
+
+
+def _seeks_criteria_rubric_intent(user_message: str) -> bool:
+    """Más ancho de snippet cuando el docente pide criterios/rúbrica/ponderación (tablas en guía)."""
+    if not user_message or not str(user_message).strip():
+        return False
+    t = set(re.findall(r"[a-z0-9]{2,}", _fold(str(user_message))))
+    return bool(
+        t
+        & {
+            "criterio",
+            "criterios",
+            "rubrica",
+            "rubricas",
+            "calificar",
+            "evaluarlo",
+            "evaluar",
+            "evaluacion",
+            "evaluaciones",
+            "pondera",
+            "ponderacion",
+        }
+    )
 
 
 def _strip_yaml_frontmatter(md: str) -> str:
@@ -286,9 +413,14 @@ def build_teacher_context_snippets_bundle(
     *,
     db: Optional[Session] = None,
     owner_user_id: Optional[int] = None,
+    for_formal_evaluation: bool = False,
 ) -> Dict[str, Any]:
     """
     Devuelve un bundle auditable. Si no hay coincidencias útiles, `snippets` va vacío.
+
+    for_formal_evaluation: hasta varios párrafos por documento y más caracteres por
+    fragmento, para alimentar el bloque de contexto de evaluación formal (coincidencia
+    léxica sobre Markdown en disco + re-ranking TF‑IDF local cuando hay 2+ candidatos).
     """
     base: Dict[str, Any] = {
         "retrieval_kind": "teacher_context_snippets",
@@ -298,6 +430,7 @@ def build_teacher_context_snippets_bundle(
         "documents_read": 0,
         "snippets": [],
         "note": None,
+        "tfidf_rerank_applied": False,
     }
 
     ctx = context if isinstance(context, dict) else {}
@@ -323,7 +456,16 @@ def build_teacher_context_snippets_bundle(
         base["note"] = "Sin tokens de consulta útiles tras filtrar stopwords; retrieval omitido."
         return base
     tokens_set = set(tokens_list)
+    tokens_scoring = _expand_scoring_tokens(tokens_set)
     base["query_tokens"] = tokens_list[:16]
+    prefer_intro = _message_prefers_intro_paragraph(msg)
+    criteria_rubric_intent = _seeks_criteria_rubric_intent(msg)
+    if for_formal_evaluation:
+        snippet_max_chars = FORMAL_EVAL_MAX_SNIPPET_CHARS
+        max_snippets_out = FORMAL_EVAL_MAX_SNIPPETS
+    else:
+        snippet_max_chars = 900 if criteria_rubric_intent else MAX_SNIPPET_CHARS
+        max_snippets_out = MAX_SNIPPETS
 
     docs = _documents_from_pack(pack)
     candidates: List[Tuple[int, Dict[str, Any], int]] = []
@@ -336,7 +478,7 @@ def build_teacher_context_snippets_bundle(
             continue
         fn = str(d.get("filename") or "")
         cat = str(d.get("categoria_documental") or "")
-        bonus = _doc_metadata_bonus(fn, cat, tokens_set)
+        bonus = _doc_metadata_bonus(fn, cat, tokens_scoring)
         candidates.append((bonus, d, did))
 
     candidates.sort(key=lambda x: (-x[0], x[2]))
@@ -354,37 +496,87 @@ def build_teacher_context_snippets_bundle(
         if not paragraphs:
             continue
 
-        best_para = ""
-        best_ps = 0
-        for p in paragraphs:
-            ps = _paragraph_score(p, tokens_set)
-            if ps > best_ps or (ps == best_ps and len(p) > len(best_para)):
-                best_ps = ps
-                best_para = p
+        if for_formal_evaluation:
+            para_rows: List[Tuple[int, str]] = []
+            for p in paragraphs:
+                ps = _paragraph_score(p, tokens_scoring)
+                if criteria_rubric_intent:
+                    ps = ps + _ib_objectives_rubric_weight(p)
+                para_rows.append((ps, p))
+            para_rows.sort(key=lambda x: (-x[0], -len(x[1])))
+            picks: List[Tuple[int, str]] = []
+            seen_prefix: Set[str] = set()
+            for ps, p in para_rows:
+                if len(picks) >= FORMAL_EVAL_PARAGRAPHS_PER_DOC:
+                    break
+                if ps <= 0:
+                    continue
+                fp = _fold(p)[:120]
+                if fp in seen_prefix:
+                    continue
+                seen_prefix.add(fp)
+                picks.append((ps, p))
+            if not picks:
+                use_intro = doc_bonus >= MIN_DOC_BONUS_FOR_INTRO_SNIPPET or prefer_intro
+                if (use_intro or doc_bonus >= MIN_DOC_BONUS_FOR_INTRO_SNIPPET) and paragraphs:
+                    picks = [(0, paragraphs[0])]
+                else:
+                    continue
+            for ps, body in picks:
+                snippet_text = _best_window(body, tokens_scoring, snippet_max_chars)
+                if not snippet_text:
+                    continue
+                total = doc_bonus + ps * 10
+                scored.append(
+                    {
+                        "document_id": did,
+                        "filename": str(d.get("filename") or ""),
+                        "categoria_documental": str(d.get("categoria_documental") or ""),
+                        "snippet": snippet_text,
+                        "_sort": total,
+                    }
+                )
+        else:
+            best_para = ""
+            best_ps = 0
+            for p in paragraphs:
+                ps = _paragraph_score(p, tokens_scoring)
+                if criteria_rubric_intent:
+                    ps = ps + _ib_objectives_rubric_weight(p)
+                if ps > best_ps or (ps == best_ps and len(p) > len(best_para)):
+                    best_ps = ps
+                    best_para = p
 
-        use_intro = best_ps == 0 and doc_bonus >= MIN_DOC_BONUS_FOR_INTRO_SNIPPET
-        if best_ps == 0 and not use_intro:
-            continue
+            use_intro = best_ps == 0 and (
+                doc_bonus >= MIN_DOC_BONUS_FOR_INTRO_SNIPPET or prefer_intro
+            )
+            if best_ps == 0 and not use_intro:
+                continue
 
-        body = best_para if best_ps > 0 else paragraphs[0]
-        snippet_text = _best_window(body, tokens_set, MAX_SNIPPET_CHARS)
-        if not snippet_text:
-            continue
+            body = best_para if best_ps > 0 else paragraphs[0]
+            snippet_text = _best_window(body, tokens_scoring, snippet_max_chars)
+            if not snippet_text:
+                continue
 
-        total = doc_bonus + best_ps * 10
-        scored.append(
-            {
-                "document_id": did,
-                "filename": str(d.get("filename") or ""),
-                "categoria_documental": str(d.get("categoria_documental") or ""),
-                "snippet": snippet_text,
-                "_sort": total,
-            }
-        )
+            total = doc_bonus + best_ps * 10
+            scored.append(
+                {
+                    "document_id": did,
+                    "filename": str(d.get("filename") or ""),
+                    "categoria_documental": str(d.get("categoria_documental") or ""),
+                    "snippet": snippet_text,
+                    "_sort": total,
+                }
+            )
 
     base["documents_read"] = read_count
-    scored.sort(key=lambda x: -x["_sort"])
-    for item in scored[:MAX_SNIPPETS]:
+    scored, tfidf_applied = rerank_scored_snippets(msg, scored)
+    base["tfidf_rerank_applied"] = bool(tfidf_applied)
+    if tfidf_applied:
+        base["retrieval_mode"] = "markdown_selective_tfidf"
+    else:
+        scored.sort(key=lambda x: -x["_sort"])
+    for item in scored[:max_snippets_out]:
         item.pop("_sort", None)
         base["snippets"].append(item)
 
@@ -408,7 +600,8 @@ def format_teacher_context_snippets_for_prompt(
         return ""
 
     lines = [
-        "--- Fragmentos recuperados · Mi Espacio IB (markdown_selective, sin embeddings) ---",
+        "--- Fragmentos recuperados · Mi Espacio IB (léxico + TF‑IDF local entre 2+ candidatos; "
+        "si la pregunta pide apertura/introducción, anclaje al primer bloque) · sin vector DB ---",
         (
             f"Documentos considerados en el índice activo: {bundle.get('documents_considered', 0)}; "
             f"Markdown leídos: {bundle.get('documents_read', 0)}."
